@@ -35,7 +35,7 @@ if (in_array($httpOrigin, $allowedOrigins)) {
 
     
     // Записываем лог ПЕРЕД завершением OPTIONS-запроса
-    writeCorsLog($corsStatus, "Браузер прислал разрешенный Origin. Метод: $requestMethod");
+    //writeCorsLog($corsStatus, "Браузер прислал разрешенный Origin. Метод: $requestMethod");
 
     // ЕСЛИ ЭТО ПРЕДЗАПРОС OPTIONS — МГНОВЕННО УБИВАЕМ ЕГО ТУТ ЖЕ
     if ($requestMethod === 'OPTIONS') {
@@ -46,26 +46,24 @@ if (in_array($httpOrigin, $allowedOrigins)) {
     // Если Origin прилетел, но его нет в массиве доверенных доменов
     if (!empty($httpOrigin)) {
         $corsStatus = 'CORS_FAILED';
-        writeCorsLog($corsStatus, "Внимание! Origin '$httpOrigin' отсутствует в белом списке!");
+        //writeCorsLog($corsStatus, "Внимание! Origin '$httpOrigin' отсутствует в белом списке!");
     }
 }
 
 // Резервный перехват OPTIONS (если браузер прислал OPTIONS вообще без заголовка Origin)
 if ($requestMethod === 'OPTIONS') {
     $corsStatus = 'OPTIONS_FALLBACK';
-    writeCorsLog($corsStatus, "Внимание! Запрос OPTIONS прилетел без заголовка Origin.");
+    //writeCorsLog($corsStatus, "Внимание! Запрос OPTIONS прилетел без заголовка Origin.");
     header("HTTP/1.1 200 OK");
     exit;
 }
 
 // Записываем лог для успешных обычных запросов (GET/POST)
 if ($corsStatus === 'CORS_SUCCESS') {
-    writeCorsLog($corsStatus, "Успешная обработка основного запроса. Метод: $requestMethod");
+    //writeCorsLog($corsStatus, "Успешная обработка основного запроса. Метод: $requestMethod");
 }
 
-// =========================================================================
-// ФУНКЦИЯ ЛОГИРОВАНИЯ (Записывает подробный JSON-пакет)
-// =========================================================================
+/*
 function writeCorsLog($status, $messageText = '') {
     $logFile = __DIR__ . '/cors_debug_log.txt';
     
@@ -91,6 +89,7 @@ function writeCorsLog($status, $messageText = '') {
 
     @file_put_contents($logFile, $logEntry, FILE_APPEND);
 }
+*/
 
 // =========================================================================
 // ДАЛЬШЕ ИДЕТ ВАШ ИЗНАЧАЛЬНЫЙ КОД СКРИПТА / БЛОК ЗАЩИТЫ ПО IP / ЯДРО БИТРИКСА
