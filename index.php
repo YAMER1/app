@@ -1,0 +1,838 @@
+<style>
+.bg-color {
+    background-color: #242630;
+}
+
+
+
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease; /* 0.5s — это полсекунды */
+}
+
+/* Начальная точка при появлении и финальная точка при исчезновении */
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0; /* Полная прозрачность */
+}
+
+/* Финальная точка при появлении и начальная при исчезновении (необязательно, но для стабильности) */
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1; /* Полная видимость */
+}
+</style>
+
+
+<body id="app" class="d-flex flex-column justify-content-center bg-color text-white p-3">
+        <!-- 1. Этот блок виден ТОЛЬКО во время загрузки Vue -->
+    <div class="d-flex flex-column justify-content-center align-items-center">
+        <div class="text-center">
+            <span id="vueLoad" class="fs-6">Загрузка, пожалуйста, подождите...</span>
+            <span id="permanentAnswer" class="fs-6 d-none">{{ permanentAnswer }}</span>
+        </div>
+    </div>
+
+    <transition id="transitionAjaxAnswer" name="fade" v-if="pageReady">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center position-fixed top-0 start-0 p-3" 
+            v-if="ajaxAnswer" 
+            style="pointer-events: none; z-index: 1050;">
+            
+            <div id="userid" :userid="userId"></div>
+            
+            <div id="ajaxAnswer" 
+                class="fs-6 p-2 rounded text-nowrap shadow-lg" 
+                style="white-space: pre-wrap; 
+                pointer-events: auto; 
+                background-color: #111418; /* Глубокий темный графитовый цвет */
+                border: 2px solid #0d6efd;   /* Фирменная голубая рамка Bootstrap */
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.25) !important; /* Мягкое голубое свечение */
+                color: #ffffff;">
+                {{ ajaxAnswer }}
+            </div>
+        </div>
+    </transition>
+
+    <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady">
+        <div class="d-flex mb-3 align-items-start justify-content-center">
+            <div class="d-flex flex-column">
+                <div class="fs-5 cursor-pointer mb-2" @click.stop="toggleFilter" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px">
+                    <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                        <!-- 
+                        Заменяем fill="#fff" на динамический :fill.
+                        Если фильтр активен, подставится цвет #0d6efd (стандартный синий в Bootstrap 5).
+                        Если не активен — вернется белый цвет #fff.
+                        -->
+                        <path 
+                            fill-rule="evenodd" 
+                            clip-rule="evenodd" 
+                            d="M9.969 8.006v7.038L6.03 12.917v-4.91L1.084 1.043h14.003L9.97 8.006z" 
+                            :fill="isFilterActive ? '#0d6efd' : '#fff'"
+                        ></path>
+                    </svg>
+                    <span class="ms-2" :class="{ 'fw-bold text-primary': isFilterActive }">Фильтр (premium)</span>
+                </div>
+
+                <div v-if="isFilterActive" class="d-flex flex-column py-4 px-3 rounded" style="background-color: rgba(0, 0, 0, 0.15);width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
+                    <div class="d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
+                            <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-5" style="width:20px;height:20px;">&#9719;</div>
+                            <span class="ms-3" style="width:125px">Время отправки</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="timeRangeFilterActive ? 'rotate-180' : ''" height="8" width="8" src="/local/templates/megasborka/svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column" :class="timeRangeFilterActive ? 'mt-3' : ''" v-if="timeRangeFilterActive">
+                            <div class="row g-3">
+                                <span class="mb-2 mt-3">Время отправки по МСК</span>
+                                <!-- Поле "С" -->
+                                <div class="col-6 my-0">
+                                <label class="form-label small mb-1 text-white fw-bold">С:</label>
+                                    <input 
+                                        type="text" 
+                                        :value="startTime"
+                                        @input="applyMask($event, 'startTime')"
+                                        @blur="validateField('startTime'); timeRangeUpdate();" 
+                                        maxlength="5"
+                                        placeholder="00:00"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                    />
+                                    </div>
+
+                                    <!-- Поле До -->
+                                    <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">До:</label>
+                                    <input 
+                                        type="text" 
+                                        :value="endTime"
+                                        @input="applyMask($event, 'endTime')"
+                                        @blur="validateField('endTime'); timeRangeUpdate();" 
+                                        maxlength="5"
+                                        placeholder="24:00"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div class="small mt-2 text-center text-white">
+                                Пример: С 09:00 до 18:00 по МСК
+                            </div>
+                        </div>
+                    </div>
+                    <div class="my-2" style="width: 100%; height: 0px;"></div>
+                    <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleMarketplaceFilter">
+                        <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-6" style="width:20px;height:20px;">&#9776;</div>
+                        <span class="ms-3" style="width:125px">Маркетплейсы</span>
+                        <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="/local/templates/megasborka/svg/check.svg">
+                    </div>
+                    <div class="d-flex flex-column gap-1 text-white" :class="isFilterMarketplaceActive ? 'mt-3' : ''" v-if="isFilterMarketplaceActive">
+                        <!-- 1. Меняем :key на уникальный ID -->
+                        <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
+                            <!-- 2. Передаем в функцию $event.target.checked -->
+                            <input 
+                                type="checkbox" 
+                                :checked="market.checked == 1"
+                                @change="marketSubscription(1,market.ID,$event.target.checked)"
+                                @click.stop
+                                class="cursor-pointer w-20px h-20px"
+                            >
+                            <span class="ps-2">{{ market.NAME }}</span>
+                        </div>
+                        
+                        <div v-if="marketplaces.length === 0" class="text-muted small">
+                            Список пуст или загружается...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center">
+            <div class="d-flex flex-column">
+                <div class="fs-5 mb-2">Подписка на категории:</div>
+                <div id="selection" class="d-flex flex-column">
+                    <div 
+                        v-for="(mainSection, index) in mainSections" 
+                        :key="mainSection.ID" 
+                        class="mainSection-item cursor-pointer"
+                        @click="loadSubSections(mainSection, index)"
+                    >
+                        <div class="d-flex align-items-center justify-content-between h-100 my-1" style="width:260px;min-width:260px;max-width:260px">
+                            <!-- Чекбокс -->
+                            <input 
+                                type="checkbox" 
+                                v-model="mainSection.checked" 
+                                @change="sectionSubscription('mainSection',mainSection,'',index)"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px"
+                            >
+                            <!-- Название раздела -->
+                            <div class="d-flex w-200px">
+                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
+                                    {{ mainSection.NAME }}
+                                </span>
+                            </div>
+                            <img 
+                            class="filter-white ms-4 transition-easy-time-05 cursor-pointer pointer-events-none" 
+                            :class="{
+                                'rotate-180': mainSection.isSubSectionVisible,
+                                'opacity-0': mainSection.ID == 135
+                            }" 
+                            height="8" 
+                            width="8" 
+                            src="/local/templates/megasborka/svg/check.svg"
+                            >
+                            <!-- Показываем подразделы -->
+                        </div>
+
+                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2" style="width:0px!important">
+                            <div 
+                                v-for="subSection in mainSection.subSections" 
+                                :key="subSection.ID" 
+                                class="subSection-item d-flex align-items-center my-1"
+                                @click.stop="onSubSectionClick(subSection, mainSection)"
+                            >
+                                <input 
+                                    type="checkbox" 
+                                    v-model="subSection.checked"
+                                    @change="sectionSubscription('subSection',subSection,mainSection,index)"
+                                    @click.stop
+                                    class="cursor-pointer min-w-20px w-20px h-20px"
+                                >
+                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
+                                    {{ subSection.NAME }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://app.megasborka.ru/bitrix/js/ui/vue3/vue/prod/dist/vue.bundle.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const app = Vue.createApp({
+        data() {
+            return {
+                pageReady: false,
+                isScriptLoaded: false,
+                shouldProceed: true,
+                mainSections: [],
+                userId: null,
+                permanentAnswer: "",
+                ajaxAnswer: null,
+                isFilterActive: false,
+                isFilterMarketplaceActive: false,
+                timeRangeFilterActive: false,
+                marketplaces: [],
+                startTime: '00:00',
+                endTime: '24:00'
+            };
+        },
+        // ДОБАВЛЯЕМ СЕКЦИЮ WATCH
+        watch: {
+            // Название функции должно СТРОГО совпадать с именем переменной из data()
+            ajaxAnswer(newValue) {
+                // Если в переменную записали текст (newValue не пустой)
+                if (newValue) {
+                    // Очищаем предыдущий таймер, если пользователь кликнул быстро несколько раз
+                    if (this.ajaxTimer) {
+                        clearTimeout(this.ajaxTimer);
+                    }
+
+                    // Запускаем автоматическое скрытие через 2 секунды (2000 мс)
+                    this.ajaxTimer = setTimeout(() => {
+                        this.ajaxAnswer = null;
+                    }, 2000);
+                }
+            }
+        },
+        mounted() {
+            console.log("Закрытие блока инфо загрузки");
+            document.getElementById("vueLoad").classList.add("d-none");
+            console.log("Открытие блока постоянного текста");
+            document.getElementById("permanentAnswer").classList.remove("d-none");
+            console.log("Постоянный текст открыт");
+            //document.getElementById("transitionAjaxAnswer").classList.remove("d-none");
+            //document.getElementById("pageContent").classList.remove("d-none");
+            // Запускаем безопасное ожидание загрузки скрипта Telegram
+            this.permanentAnswer = "Подгружаем телеграм, пожалуйста, подождите...";
+            this.ensureTelegramLoaded((success) => {
+                if (success) {
+                    this.permanentAnswer = "Telegram SDK успешно инициализирован, запускаем приложение...";
+                    
+                    // ОБЕРТЫВАЕМ В TRY-CATCH ДЛЯ ТОЧНОЙ ОТЛАДКИ
+                    try {
+                        console.log("[Vue Init] Запуск метода initTelegramApp()");
+                        this.initTelegramApp(); 
+                        console.log("[Vue Init] Метод initTelegramApp() выполнен успешно!");
+                    } catch (error) {
+                        console.error("Критическая ошибка внутри initTelegramApp:", error);
+                        this.permanentAnswer = "Ошибка инициализации приложения!";
+                        this.ajaxAnswer = `Детали ошибки: ${error.message}`;
+                        this.shouldProceed = false;
+                    }
+
+                } else {
+                    console.error("Критическая ошибка: не удалось дождаться загрузки Telegram SDK.");
+                    this.userId = 0;
+                    this.permanentAnswer = "Критическая ошибка!\nНе удалось загрузить компоненты Telegram. Проверьте подключение к сети.";
+                    this.shouldProceed = false;
+                }
+            });
+
+            document.addEventListener('click', this.handleClickOutside);
+        },
+        beforeUnmount() { // Если у вас Vue 2, замените на destroyed()
+            // Обязательно убираем слежку, когда уходим со страницы, чтобы не тратить память
+            document.removeEventListener('click', this.handleClickOutside);
+        },
+        methods: {
+            async sendRequest(url, payload) {
+                try {
+                    // --- УМНАЯ КОРРЕКТИРОВКА URL ДЛЯ CDN GCORE ---
+                    // Если url не начинается с http:// или https://, значит это относительный путь
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        
+                        // Очищаем первый слэш для стандартизации (например, "/user/reg.php" -> "user/reg.php")
+                        const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+                        
+                        // ПРОВЕРКА: Если путь уже начинается с "app/", то папку не дублируем
+                        if (cleanUrl.startsWith('app/')) {
+                            url = `https://${window.location.hostname}/${cleanUrl}`;
+                        } else {
+                            // Если папки "app/" в пути не было, жестко добавляем её вместе с поддоменом
+                            url = `https://${window.location.hostname}/app/${cleanUrl}`;
+                        }
+                    }
+                    console.log(`[Fetch API] Отправка запроса на полный адрес: ${url}`);
+                    // ----------------------------------------------
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Ошибка сервера: ${response.status} (${response.statusText})`);
+                    }
+
+                    return await response.json(); // Возвращаем готовый ответ от Битрикса
+                } catch (error) {
+                    console.error("Ошибка при отправке запроса:", error);
+                    
+                    // Передаем ошибку наверх, чтобы блоки .catch в loadMainSections() её поймали и вывели на экран
+                    throw new Error(`Не удалось связаться с сервером.\nСсылка: ${url}\nПричина: ${error.message}`);
+                }
+            },
+
+
+            // Метод проверяет наличие скрипта, а если его нет — ждет до 5 секунд
+            ensureTelegramLoaded(callback) {
+                let attempts = 0;
+                const maxAttempts = 50; // 50 попыток * 100мс = 5 секунд ожидания
+
+                const check = () => {
+                    // Проверяем наличие глобального объекта Telegram
+                    const loaded = typeof window.Telegram !== 'undefined' && typeof window.Telegram.WebApp !== 'undefined';
+                    
+                    console.log(`[Telegram Load Check] Попытка ${attempts}: Статус загрузки = ${loaded}`);
+                    
+                    if (loaded) {
+                        console.log("[Telegram Load Check] Telegram SDK успешно обнаружен в window!");
+                        if (typeof this.isScriptLoaded !== 'undefined') {
+                            this.isScriptLoaded = true;
+                        }
+                        callback(true);
+                    } else if (attempts < maxAttempts) {
+                        attempts++;
+                        setTimeout(check, 100); 
+                    } else {
+                        console.error("[Telegram Load Check] Превышено время ожидания Telegram SDK (5 секунд).");
+                        if (typeof this.isScriptLoaded !== 'undefined') {
+                            this.isScriptLoaded = false;
+                        }
+                        callback(false); 
+                    }
+                };
+
+                check();
+            },
+
+            initTelegramApp() {
+                console.log("Проверка подключения к телеграм");
+                
+                let attempts = 0;
+                
+                const checkScriptAndProceed = () => {
+                    this.isScriptLoaded = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
+                    
+                    if (!this.isScriptLoaded) {
+                        if (typeof window.Telegram?.WebApp === 'undefined') {
+                            if (attempts < 5) {
+                                attempts++;
+                                this.permanentAnswer = `Ожидание Telegram SDK... Попытка ${attempts} из 5`;
+                                setTimeout(checkScriptAndProceed, 500);
+                                return;
+                            } else {
+                                this.userId = 0;
+                                this.permanentAnswer = "Критическая ошибка!\nНе удалось загрузить компоненты Telegram. Проверьте соединение.";
+                                this.shouldProceed = false;
+                                return;
+                            }
+                        }
+                    }
+
+                    // --- СКРИПТ УСПЕШНО ЗАГРУЖЕН! ---
+                    console.log(`Связь с Telegram SDK установлена на попытке №${attempts}`);
+                    this.permanentAnswer = "Компоненты Telegram загружены. Проверяем окружение...";
+
+                    const isInsideTelegram = window.Telegram.WebApp.initData !== "";
+
+                    if (!isInsideTelegram) {    
+                        const isDebugHostname = window.location.hostname === "dev.megasborka.ru";
+
+                        if (!isDebugHostname) {
+                            this.userId = 0;
+                            this.permanentAnswer = "Критическая ошибка!\nБот работает только через официальное приложение Telegram!\n\nСообщите, пожалуйста, администратору @ya_yura1 об ошибке";
+                            this.shouldProceed = false;
+                            return;
+                        } else {
+                            this.permanentAnswer = "Включаем режим отладки на dev...";
+                            const debugUserId = "661648698"; 
+                            this.userId = debugUserId; 
+                            this.ajaxAnswer = "Режим отладки: Запуск loadMainSections()...";
+                            this.loadMainSections();
+                            return;
+                        }
+                    }
+
+                    // --- БОЕВОЙ БЛОК ВНУТРИ ТЕЛЕГРАМА ---
+                    try {
+                        this.permanentAnswer = "Инициализация WebApp (tg.ready и tg.expand)...";
+                        const tg = window.Telegram.WebApp;
+                        tg.ready();
+                        tg.expand();
+
+                        this.permanentAnswer = "Считываем данные пользователя (initDataUnsafe)...";
+                        const data = tg.initDataUnsafe;
+
+                        if (data && data.user && data.user.id) {
+                            const userId = data.user.id;
+                            this.userId = userId; 
+                            
+                            this.permanentAnswer = `Авторизация на портале...`;
+                            //this.ajaxAnswer = "Ожидание ответа от user/registration.php...";
+
+                            this.sendRequest('user/registration.php', { userId: this.userId })
+                                .then(resData => {
+                                    this.permanentAnswer = "Авторизация успешна! Запускаем вывод резделов()...";
+                                    if (resData && resData.message) {
+                                        this.ajaxAnswer = "Ответ сервера: " + resData.message;
+                                    }
+                                    
+                                    // Пытаемся запустить загрузку разделов
+                                    try {
+                                        this.loadMainSections();
+                                    } catch (loadError) {
+                                        this.permanentAnswer = "💥 Краш внутри метода loadMainSections!";
+                                        this.ajaxAnswer = "Ошибка: " + loadError.message;
+                                    }
+                                })
+                                .catch(error => {
+                                    // Если файл регистрации вернул ошибку (например 403 из-за secure.php)
+                                    this.permanentAnswer = "⚠️ Сбой API регистрации. Фолбэк на loadMainSections...";
+                                    this.ajaxAnswer = "Детали сбоя API: " + (error.message || JSON.stringify(error));
+                                    this.loadMainSections();
+                                });
+                        } else {
+                            this.permanentAnswer = "Предупреждение: Данные профиля недоступны. Пробуем загрузить каталог...";
+                            this.loadMainSections();
+                        }
+
+                    } catch (jsError) {
+                        this.permanentAnswer = "💥 Ошибка выполнения Telegram SDK!";
+                        this.ajaxAnswer = "Текст: " + jsError.message + "\n\nСтек: " + jsError.stack;
+                        this.shouldProceed = false;
+                    }
+                };
+
+                checkScriptAndProceed();
+            },
+
+
+            
+            fetchSection(filter, select) {
+                const userId = this.userId;
+                
+                // Передаем объект с параметрами напрямую в наш хелпер.
+                // Метод sendRequest сам сделает JSON.stringify и вернет распарсенный res.json()
+                return this.sendRequest("section/sections.php", { userId, filter, select });
+            },
+
+            loadMainSections() {
+                if (!this.shouldProceed) return;
+                
+                console.log("Загрузка разделов");
+                this.permanentAnswer = "Загружаем категории товаров с сервера...";
+
+                this.fetchSection({ DEPTH_LEVEL: 1 }, ["ID", "NAME"])
+                    .then(response => {
+                        if (Array.isArray(response)) {
+                            console.log("Разделы успешно получены, форматируем структуру Vue 3...");
+                            
+                            this.mainSections = response.map(section => {
+                                return { ...section, subSections: [], isSubSectionVisible: false };
+                            });
+                            
+                            this.pageReady = true;
+                            this.permanentAnswer = null; // Успех! Полностью скрываем экран загрузки, открывая каталог
+                        } else {
+                            // ИСПРАВЛЕНО: Выводим неверный формат ответа Битрикса прямо в permanentAnswer
+                            this.permanentAnswer = `💥 Ошибка формата данных!\nСервер вернул некорректный ответ вместо списка категорий.\n\nДетали: ${JSON.stringify(response.message)}`;
+                            console.error("Ошибка: сервер вернул некорректный формат разделов", response);
+                        }
+                    })
+                    .catch(err => {
+                        // ИСПРАВЛЕНО: Выводим сетевую или PHP-ошибку (403, 502, 500) прямо в permanentAnswer
+                        this.permanentAnswer = `💥 Критический сбой при загрузке каталога!\nДетали сетевой ошибки: ${err.message || JSON.stringify(err)}`;
+                        console.error("Ошибка загрузки основных разделов:", err);
+                    });
+            },
+
+            loadSubSections(mainSection, index) {
+                this.mainSections.forEach((section, i) => {
+                    if (i !== index) {
+                        section.isSubSectionVisible = false;
+                    }
+                });
+
+                if (!this.mainSections[index].subSections || this.mainSections[index].subSections.length === 0) {
+                    return this.fetchSection(
+                        { DEPTH_LEVEL: 2, IBLOCK_SECTION_ID: mainSection.ID },
+                        ["ID", "NAME"]
+                    ).then(response => {
+                        console.log('Подразделы для ID:', mainSection.ID, response);
+                        const subData = Array.isArray(response) ? response : [];
+                        
+                        this.mainSections[index] = {
+                            ...this.mainSections[index],
+                            subSections: subData,
+                            isSubSectionVisible: true
+                        };
+                        
+                        this.mainSections.splice(index, 1, this.mainSections[index]);
+                        return subData; 
+                    });
+                } else {
+                    this.mainSections[index].isSubSectionVisible = !this.mainSections[index].isSubSectionVisible;
+                    this.mainSections.splice(index, 1, this.mainSections[index]);
+                    return Promise.resolve(this.mainSections[index].subSections);
+                }
+            },
+            
+            onSubSectionClick(subSection, mainSection) {
+                console.log('SubSection clicked:', subSection, 'parent MainSection:', mainSection);
+            },
+            
+            sectionSubscriptionFetch(data) {
+                // Наша функция sendRequest сама кодирует объекты в JSON под капотом,
+                // поэтому передаем data как есть, без предварительного JSON.stringify.
+                return this.sendRequest("section/subscription.php", data)
+                    .then(resData => {
+                        // Сохраняем текстовый ответ сервера, если он пришел
+                        if (resData && resData.message) {
+                            this.ajaxAnswer = resData.message; 
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Ошибка при отправке данных подписки:", error);
+                        this.ajaxAnswer = "Ошибка при оформлении подписки.";
+                    });
+            },
+
+            async sectionSubscription(sectionType, section, parentSection = null, index) {
+                // ИСПРАВЛЕНО: Добавлены const для предотвращения ReferenceError
+                const initialData = {
+                    userId: this.userId,
+                    sectionType: sectionType,
+                    sectionId: section.ID,
+                    isChecked: section.checked
+                };
+                await this.sectionSubscriptionFetch(initialData);
+
+                if (sectionType === "mainSection") {
+                    if (!section.subSections || !section.subSections.length) {
+                        console.log("Активируем сначала дочерние разделы, если они не открыты перед нажатием чекбокса, ID раздела " + index);
+                        await this.loadSubSections(section, index);
+                        section.subSections = this.mainSections[index].subSections;
+                    }
+
+                    console.log("Проверка");
+                    console.log(section.subSections);
+                    console.log(section.subSections.length);
+                    console.log(section.checked);
+                    console.log(`Тип секции: ${sectionType}, ID: ${section.ID}, активен: ${section.checked}`);
+
+                    if (section.subSections && section.subSections.length) {
+                        console.log(`Отмечаем все дочерние, пользователь ${this.userId}`);
+                        
+                        // Проставляем статус чекбоксов для всех дочерних элементов
+                        section.subSections.forEach(sub => {
+                            sub.checked = section.checked;
+                        });
+
+                        const subsectionIdString = section.subSections.map(sub => sub.ID).join(',');
+                        const childrenData = {
+                            userId: this.userId,
+                            sectionType: "subSection",
+                            sectionId: subsectionIdString,
+                            isChecked: section.checked
+                        };
+
+                        console.log("Отмечаем подпись или отпись на дочерние разделы");
+                        // Ждем успешного сохранения дочерних подписок на сервере
+                        await this.sectionSubscriptionFetch(childrenData);
+
+                    } else {
+                        console.log("Не найдены дочерние разделы");
+                    }
+                } else {
+                    // Логика для дочернего раздела (subSection)
+                    if (section.checked === true) {
+                        if (parentSection && parentSection.checked === false) { 
+                            const parentData = {
+                                userId: this.userId,
+                                sectionType: "mainSection",
+                                sectionId: parentSection.ID,
+                                isChecked: true
+                            };
+
+                            // Автоматически включаем родительский раздел на сервере и в интерфейсе
+                            await this.sectionSubscriptionFetch(parentData);
+                            parentSection.checked = true; 
+                        }
+                    }
+                }
+            },
+            marketSubscription(mainMarket, id, isChecked) {
+                const data = {
+                    userId: this.userId,
+                    mainMarket: mainMarket ? 1 : 0, 
+                    id: id,
+                    isChecked: isChecked 
+                };
+
+                // Вызываем универсальный хелпер вместо сырого fetch
+                this.sendRequest('marketplaces/subscription.php', data)
+                    .then(resData => {
+                        // Вся ваша логика разбора ответа полностью сохранена:
+                        if (Array.isArray(resData)) {
+                            this.marketplaces = resData;
+                        } 
+                        else if (resData && resData.data) {
+                            // Исходная строка была закомментирована:
+                            // this.marketplaces = resData.data;
+                        }
+                        
+                        // Записываем ответ сервера в переменную статуса
+                        if (resData && resData.message) {
+                            this.ajaxAnswer = resData.message;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Ошибка при получении маркетплейсов:", error);
+                        this.marketplaces = []; // Сбрасываем при ошибке, как в оригинале
+                    });
+            },
+            timeRangeGet() {
+                const data = {
+                    action: 'get',
+                    userId: this.userId
+                };
+
+                this.sendRequest('user/timeRange.php', data)
+                    .then(result => {
+                        if (result && result.status === 'success' && result.data) {
+                            // Заполняем поля ввода значениями из базы Битрикса
+                            this.startTime = result.data.start || '00:00';
+                            this.endTime = result.data.end || '24:00';
+                        } else {
+                            // Если настроек нет, выставляем круглосуточно
+                            this.startTime = '00:00';
+                            this.endTime = '24:00';
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Ошибка при получении интервала времени:", error);
+                    });
+            },
+            marketplacesList(data) {
+                // Вызываем общий метод отправки через this.
+                this.sendRequest('marketplaces/list.php', data)
+                    .then(resData => {
+                        // Записываем ответ в зависимости от структуры, которую шлет Битрикс
+                        if (Array.isArray(resData)) {
+                            this.marketplaces = resData;
+                        } else if (resData && resData.data) {
+                            this.marketplaces = resData.data;
+                        }
+                        
+                        // Если сервер передал сообщение, сохраняем его
+                        if (resData && resData.message) {
+                            this.ajaxAnswer = resData.message;
+                        }
+                    })
+                    .catch(error => {
+                        this.ajaxAnswer = "Ошибка при получении списка: " + error.message;
+                        this.marketplaces = []; // Сбрасываем массив, чтобы интерфейс не завис
+                    });
+            },
+            toggleTimeRangeFilter() {
+                this.timeRangeFilterActive = !this.timeRangeFilterActive;
+                if(this.timeRangeFilterActive){
+                    this.ajaxAnswer = "Задайте период публикации";
+                }
+            },
+            toggleMarketplaceFilter() {
+                this.isFilterMarketplaceActive = !this.isFilterMarketplaceActive;
+                if(this.isFilterMarketplaceActive){
+                    this.ajaxAnswer = "Уберите лишние маркетплейсы";
+                }
+            },
+            toggleFilter(){
+                this.isFilterActive = !this.isFilterActive;
+                const data = {
+                    userId: this.userId,
+                    allProducts: true,
+                };
+                this.timeRangeGet();
+                this.marketplacesList(data);
+            },
+            handleClickOutside(event) {
+                // === ПРОВЕРКА ДЛЯ ГЛАВНОГО ФИЛЬТРА ===
+                if (this.isFilterActive) {
+                    const filterBtn = this.$refs.filterBtnRef;
+                    const marketplaceContainer = this.$refs.marketplaceFilterRef;
+
+                    // Фильтр закрывается, ЕСЛИ кликнули вне кнопки фильтра 
+                    // И одновременно вне открывшегося контейнера маркетплейсов 
+                    // (чтобы клик внутри маркетплейсов случайно не захлопнул весь фильтр)
+                    const clickedOutsideBtn = filterBtn && !filterBtn.contains(event.target);
+                    const clickedOutsideMarket = !marketplaceContainer || !marketplaceContainer.contains(event.target);
+
+                    if (clickedOutsideBtn && clickedOutsideMarket) {
+                        this.isFilterActive = false;
+                        this.isFilterMarketplaceActive = false; // При закрытии фильтра маркетплейсы тоже прячем
+                    }
+                }
+
+                // === ПРОВЕРКА ДЛЯ МАРКЕТПЛЕЙСОВ ===
+                if (this.isFilterMarketplaceActive) {
+                    const marketplaceContainer = this.$refs.marketplaceFilterRef;
+                    
+                    // Если кликнули вне контейнера маркетплейсов — закрываем только маркетплейсы
+                    if (marketplaceContainer && !marketplaceContainer.contains(event.target)) {
+                        this.isFilterMarketplaceActive = false;
+                    }
+                }
+            },
+
+            applyMask(event, field) {
+                // 1. Оставляем только чистые цифры
+                let val = event.target.value.replace(/\D/g, '');
+                
+                // 2. Жестко режем строку до 4 цифр (ЧЧММ)
+                if (val.length > 4) {
+                val = val.slice(0, 4);
+                }
+
+                // --- ВАЛИДАЦИЯ ЧАСОВ (Символы 1 и 2) ---
+                // Первая цифра не может быть больше 2
+                if (val.length >= 1 && Number(val[0]) > 2) {
+                val = '2' + val.slice(1);
+                }
+                // Две цифры часов не могут быть больше 24
+                if (val.length >= 2) {
+                const hours = Number(val.slice(0, 2));
+                if (hours > 24) {
+                    val = '24' + val.slice(2);
+                }
+                }
+
+                // --- ВАЛИДАЦИЯ МИНУТ (Символы 3 и 4) ---
+                if (val.length >= 3) {
+                const hours = Number(val.slice(0, 2));
+                
+                if (hours === 24) {
+                    // Если часов 24, третья цифра (минуты) может быть только 0
+                    val = val.slice(0, 2) + '0' + val.slice(3);
+                } else if (Number(val[2]) > 5) {
+                    // Первая цифра минут не может быть больше 5 (например, вместо 6 ставим 5)
+                    val = val.slice(0, 2) + '5' + val.slice(3);
+                }
+                }
+
+                if (val.length === 4) {
+                const hours = Number(val.slice(0, 2));
+                // Если часов 24, то четвертая цифра тоже строго 0
+                if (hours === 24) {
+                    val = '2400';
+                }
+                }
+
+                // --- СБОРКА ИТОГОВОЙ СТРОКИ С ДВОЕТОЧИЕМ ---
+                if (val.length >= 3) {
+                val = val.slice(0, 2) + ':' + val.slice(2);
+                }
+
+                // Из-за особенностей реактивности Vue, если пользователь ввел лишний символ, 
+                // нам нужно принудительно обновить значение в самом HTML-элементе инпута, 
+                // иначе браузер покажет лишнюю цифру до следующего рендера.
+                this[field] = val;
+                event.target.value = val; 
+            },
+
+            validateField(field) {
+                // Если поле недописано, сбрасываем на дефолты при выходе
+                if (!this[field] || this[field].length < 5) {
+                this[field] = field === 'startTime' ? '00:00' : '24:00';
+                }
+                
+                // Проверка интервала
+                if (this.startTime >= this.endTime) {
+                this.endTime = '24:00'; 
+                if (this.startTime >= '24:00') {
+                    this.startTime = '23:45';
+                }
+                }
+            },
+
+            timeRangeUpdate() {
+                const data = {
+                    action: 'update',
+                    userId: this.userId,
+                    startTime: this.startTime,
+                    endTime: this.endTime
+                };
+
+                // Вызываем хелпер и обрабатываем ответ внутри .then()
+                this.sendRequest('user/timeRange.php', data)
+                    .then(result => {   
+                        this.ajaxAnswer = result.message;
+                    });
+            }
+
+        }
+    });
+
+    // Монтируем Vue-приложение к DOM-элементу Битрикса
+    app.mount('#app');
+});
+</script>
+</body>
