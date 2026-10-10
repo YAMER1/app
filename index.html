@@ -431,11 +431,11 @@ document.addEventListener("DOMContentLoaded", function() {
                             const isDebugHostname = window.location.hostname === "dev.megasborka.ru";
 
                             if (!isDebugHostname) {
-                                this.userId = 0;
+                               /* this.userId = 0;
                                 this.permanentAnswer = "Критическая ошибка!\nБот работает только через официальное приложение Telegram!\n\nСообщите, пожалуйста, администратору @ya_yura1 об ошибке";
                                 this.shouldProceed = false;
                                 return;
-                            } else {
+                            } else {*/
                                 this.permanentAnswer = "Включаем режим отладки на dev...";
                                 const debugUserId = "661648698"; 
                                 this.userId = debugUserId; 
