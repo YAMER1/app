@@ -82,7 +82,7 @@
                         <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
                             <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-5" style="width:20px;height:20px;">&#9719;</div>
                             <span class="ms-3" style="width:125px">Время отправки</span>
-                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="timeRangeFilterActive ? 'rotate-180' : ''" height="8" width="8" src="/local/templates/megasborka/svg/check.svg">
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="timeRangeFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
                         </div>
                         <div class="d-flex flex-column" :class="timeRangeFilterActive ? 'mt-3' : ''" v-if="timeRangeFilterActive">
                             <div class="row g-3">
@@ -125,7 +125,7 @@
                     <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleMarketplaceFilter">
                         <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-6" style="width:20px;height:20px;">&#9776;</div>
                         <span class="ms-3" style="width:125px">Маркетплейсы</span>
-                        <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="/local/templates/megasborka/svg/check.svg">
+                        <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
                     </div>
                     <div class="d-flex flex-column gap-1 text-white" :class="isFilterMarketplaceActive ? 'mt-3' : ''" v-if="isFilterMarketplaceActive">
                         <!-- 1. Меняем :key на уникальный ID -->
@@ -181,7 +181,7 @@
                             }" 
                             height="8" 
                             width="8" 
-                            src="/local/templates/megasborka/svg/check.svg"
+                            src="svg/check.svg"
                             >
                             <!-- Показываем подразделы -->
                         </div>
