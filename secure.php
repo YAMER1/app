@@ -23,8 +23,7 @@ if ($currentHost == "dev.megasborka.ru") {
 // ИСПРАВЛЕНО: Для megasborka.ru доступ открывается только при совпадении пароля
 $isAllowedHost = (
     $currentHost === 'app.megasborka.ru' || 
-    $currentHost === 'dev.megasborka.ru' ||
-    ($currentHost === 'megasborka.ru' && $hasValidPassword)
+    $currentHost === 'dev.megasborka.ru' && $hasValidPassword)
 );
 
 if (!$devAccount && (!$isAllowedHost || !$isBehindCDN)) {
