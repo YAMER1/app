@@ -211,7 +211,27 @@
         </div>
     </div>
 
-<script src="telegram/telegram-web-app.js"></script>
+<!-- 1. Добавляем id="tg-sdk", чтобы второй скрипт смог найти этот тег -->
+<script src="https://telegram.org/js/telegram-web-app.js" id="tg-sdk"></script>
+
+<!-- 2. Фолбек: если оригинал не загрузился, подключаем локальный файл -->
+<script>
+  const tgScript = document.getElementById('tg-sdk');
+  
+  // Проверяем, существует ли элемент, чтобы избежать ошибок в консоли
+  if (tgScript) {
+    tgScript.onerror = function() {
+      console.warn("Основной Telegram SDK недоступен. Подключаю локальную копию...");
+      
+      const fallbackScript = document.createElement('script');
+      // Добавляем косую черту в начало пути, чтобы он считался от корня сайта
+      fallbackScript.src = '/telegram/telegram-web-app.js'; 
+      document.head.appendChild(fallbackScript);
+    };
+  }
+</script>
+
+
 <script src="js/vue.js"></script>
 
 <script>
