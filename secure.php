@@ -12,16 +12,16 @@ $allowedOrigins = [
     'https://dev.megasborka.ru',
     'https://yamer1.github.io'
 ];
-
+ 
 // 3. Если источник в белом списке — выдаем заголовки при любом типе запроса
 if (in_array($httpOrigin, $allowedOrigins)) {
     
     // Принудительно вычищаем любые заголовки, которые BitrixVM или Apache пытались навязать
     if (function_exists('header_remove')) {
-        header("Access-Control-Allow-Origin: $httpOrigin");
-        header("Access-Control-Allow-Credentials: true"); // Можно оставить true для тестов на ПК
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-        header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Telegram-Init-Data");
+        header_remove('Access-Control-Allow-Origin');
+        header_remove('Access-Control-Allow-Credentials');
+        header_remove('Access-Control-Allow-Methods');
+        header_remove('Access-Control-Allow-Headers');
     }
     
     // Выставляем жесткие, точечные CORS-заголовки
