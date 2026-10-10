@@ -332,10 +332,10 @@ document.addEventListener("DOMContentLoaded", function() {
                             
                             // ПРОВЕРКА: Если путь уже начинается с "app/", то папку не дублируем
                             if (cleanUrl.startsWith('app/')) {
-                                url = `https://dev.megasborka.ru/${cleanUrl}`;
+                                url = `https://app.megasborka.ru/${cleanUrl}`;
                             } else {
                                 // Если папки "app/" в пути не было, жестко добавляем её вместе с поддоменом
-                                url = `https://dev.megasborka.ru/app/${cleanUrl}`;
+                                url = `https://app.megasborka.ru/app/${cleanUrl}`;
                             }
                         }
                         console.log(`[Fetch API] Отправка запроса на полный адрес: ${url}`);
