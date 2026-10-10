@@ -341,7 +341,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         console.log(`[Fetch API] Отправка запроса на полный адрес: ${url}`);
                         // ----------------------------------------------
 
-                        const tgInitData = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initData : '';
+                        //const tgInitData = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initData : '';
                         const response = await fetch(url, {
                             method: 'POST',
                             headers: {

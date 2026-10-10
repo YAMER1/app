@@ -1,74 +1,5 @@
 <?php
-
-
-
-
-
-
-
-
-
-
-
-
-<?php
-// === БЛОК ДИАГНОСТИКИ: ЛОГИРОВАНИЕ ЗАПРОСОВ В TG MINI APP ===
-
-// Путь к файлу лога (создастся автоматически в той же папке, где лежит secure.php)
-$logFile = __DIR__ . '/tg_debug_log.txt';
-
-// Собираем все данные запроса
-$logData = [
-    'date' => date('Y-m-d H:i:s'),
-    'method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'UNKNOWN',
-    'http_host' => isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'NONE',
-    'http_origin' => isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : 'NONE',
-    'http_referer' => isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : 'NONE',
-    'remote_ip' => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'NONE',
-    'forwarded_ip' => isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : 'NONE',
-];
-
-// Получаем все HTTP-заголовки
-if (function_exists('getallheaders')) {
-    $logData['all_headers'] = getallheaders();
-} else {
-    // Альтернативный вариант сбора заголовков, если getallheaders не поддерживается
-    $logData['all_headers'] = [];
-    foreach ($_SERVER as $name => $value) {
-        if (substr($name, 0, 5) == 'HTTP_') {
-            $logData['all_headers'][str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
-        }
-    }
-}
-
-// Пытаемся считать тело запроса (JSON payload)
-$rawBody = file_get_contents('php://input');
-$logData['raw_payload'] = !empty($rawBody) ? substr($rawBody, 0, 1000) : 'EMPTY_BODY';
-
-// Форматируем запись
-$logEntry = "==================================================\n";
-$logEntry .= json_encode($logData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
-$logEntry .= "==================================================\n\n";
-
-// Записываем в файл (флаг FILE_APPEND не затирает старые записи)
-@file_put_contents($logFile, $logEntry, FILE_APPEND);
-
-// === КОНЕЦ БЛОКА ДИАГНОСТИКИ (дальше идет ваш обычный CORS и код защиты) ===
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// === АБСОЛЮТНЫЙ CORS ПЕРЕХВАТЧИК ДЛЯ BITRIXVM ===
+// === АБСОЛЮТНЫЙ CORS ПЕРЕХВАТЧИК С ЛОГИРОВАНИЕМ ДЛЯ BITRIXVM ===
 
 // 1. Считываем Origin и метод
 $httpOrigin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
@@ -81,9 +12,12 @@ $allowedOrigins = [
     'https://dev.megasborka.ru',
     'https://yamer1.github.io'
 ];
- 
+
+$corsStatus = 'NOT_TRIGGERED';
+
 // 3. Если источник в белом списке — выдаем заголовки при любом типе запроса
 if (in_array($httpOrigin, $allowedOrigins)) {
+    $corsStatus = 'CORS_SUCCESS';
     
     // Принудительно вычищаем любые заголовки, которые BitrixVM или Apache пытались навязать
     if (function_exists('header_remove')) {
@@ -95,21 +29,67 @@ if (in_array($httpOrigin, $allowedOrigins)) {
     
     // Выставляем жесткие, точечные CORS-заголовки
     header("Access-Control-Allow-Origin: $httpOrigin");
-    header("Access-Control-Allow-Credentials: true");
+    header("Access-Control-Allow-Credentials: false");
     header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Telegram-Web-App-Init-Data");
+    header("Access-Control-Allow-Headers: content-type, content-type, Content-Type, Authorization, X-Requested-With, X-Telegram-Web-App-Init-Data, x-telegram-init-data");
+
     
+    // Записываем лог ПЕРЕД завершением OPTIONS-запроса
+    writeCorsLog($corsStatus, "Браузер прислал разрешенный Origin. Метод: $requestMethod");
+
     // ЕСЛИ ЭТО ПРЕДЗАПРОС OPTIONS — МГНОВЕННО УБИВАЕМ ЕГО ТУТ ЖЕ
     if ($requestMethod === 'OPTIONS') {
         header("HTTP/1.1 200 OK");
         exit;
     }
+} else {
+    // Если Origin прилетел, но его нет в массиве доверенных доменов
+    if (!empty($httpOrigin)) {
+        $corsStatus = 'CORS_FAILED';
+        writeCorsLog($corsStatus, "Внимание! Origin '$httpOrigin' отсутствует в белом списке!");
+    }
 }
 
 // Резервный перехват OPTIONS (если браузер прислал OPTIONS вообще без заголовка Origin)
 if ($requestMethod === 'OPTIONS') {
+    $corsStatus = 'OPTIONS_FALLBACK';
+    writeCorsLog($corsStatus, "Внимание! Запрос OPTIONS прилетел без заголовка Origin.");
     header("HTTP/1.1 200 OK");
     exit;
+}
+
+// Записываем лог для успешных обычных запросов (GET/POST)
+if ($corsStatus === 'CORS_SUCCESS') {
+    writeCorsLog($corsStatus, "Успешная обработка основного запроса. Метод: $requestMethod");
+}
+
+// =========================================================================
+// ФУНКЦИЯ ЛОГИРОВАНИЯ (Записывает подробный JSON-пакет)
+// =========================================================================
+function writeCorsLog($status, $messageText = '') {
+    $logFile = __DIR__ . '/cors_debug_log.txt';
+    
+    $logData = [
+        'date' => date('Y-m-d H:i:s'),
+        'cors_status' => $status,
+        'message' => $messageText,
+        'method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'UNKNOWN',
+        'script_path' => isset($_SERVER['SCRIPT_FILENAME']) ? $_SERVER['SCRIPT_FILENAME'] : __FILE__,
+        'http_host' => isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'NONE',
+        'http_origin' => isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : 'NONE',
+        'http_referer' => isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : 'NONE',
+        'remote_ip' => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'NONE',
+    ];
+
+    if (function_exists('getallheaders')) {
+        $logData['headers'] = getallheaders();
+    }
+
+    $logEntry = "==================================================\n";
+    $logEntry .= json_encode($logData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
+    $logEntry .= "==================================================\n\n";
+
+    @file_put_contents($logFile, $logEntry, FILE_APPEND);
 }
 
 // =========================================================================
@@ -144,4 +124,6 @@ if (function_exists('header_remove')) {
     header_remove('Content-Security-Policy');
 }
 header("X-Frame-Options: ALLOWALL");
-header("Content-Security-Policy: frame-ancestors 'self' https://telegram.org https://*.telegram.org telegram:;");
+
+// ИСПРАВЛЕНО: Явно разрешаем fetch-подключения (connect-src) для всех наших тестовых и рабочих доменов
+header("Content-Security-Policy: frame-ancestors 'self' https://telegram.org https://*.telegram.org telegram:; connect-src 'self' https://app.megasborka.ru https://dev.megasborka.ru https://megasborka.ru https://yamer1.github.io;");
