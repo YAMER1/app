@@ -511,7 +511,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (!this.shouldProceed) return;
                     
                     console.log("Загрузка разделов");
-                    this.permanentAnswer = "Загружаем категории товаров с сервера...";
+                    this.permanentAnswer = "Загружаем категории товаров...";
 
                     this.fetchSection({ DEPTH_LEVEL: 1 }, ["ID", "NAME"])
                         .then(response => {
@@ -532,7 +532,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         })
                         .catch(err => {
                             // ИСПРАВЛЕНО: Выводим сетевую или PHP-ошибку (403, 502, 500) прямо в permanentAnswer
-                            this.permanentAnswer = `💥 Критический сбой при загрузке каталога!\nДетали сетевой ошибки: ${err.message || JSON.stringify(err)}`;
+                            this.permanentAnswer = `💥 Критический сбой при загрузке каталога!\nПопытайтесь перезагрузить страницу, сменить КВН!\nДетали сетевой ошибки: ${err.message || JSON.stringify(err)}`;
                             console.error("Ошибка загрузки основных разделов:", err);
                         });
                 },
