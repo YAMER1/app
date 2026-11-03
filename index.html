@@ -111,18 +111,20 @@ input::placeholder {
                 <div v-if="isFilterActive" class="d-flex flex-column py-4 px-3 rounded" style="background-color: rgba(0, 0, 0, 0.15);width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
                     <div class="d-flex flex-column">
                         <div 
-                            @click="topPosts = !topPosts; simpleCheckbox('topPosts', topPosts);" 
+                            @click="$refs.topPostsCheckRef.click();" 
                             class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
                         >
                             <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-5" style="width:20px;height:20px;">☆</div>
                             <div class="ms-3" style="width: 130px;">
                                 Топ-5 постов дня
                             </div>
-                            <!-- v-model связывает чекбокс с переменной, а @click.stop предотвращает двойной клик -->
+                            <!-- Переносим вызов функции в событие @change, оно срабатывает строго ПОСЛЕ того, как v-model обновил переменную! -->
                             <input 
                                 type="checkbox" 
-                                v-model="topPosts"
-                                @click.stop="simpleCheckbox('topPosts', topPosts);"
+                                ref="topPostsCheckRef"
+                                v-model="topPostsChecked"
+                                @change="simpleCheckbox('topPosts', topPostsChecked, 'update');"
+                                @click.stop
                                 class="ms-2 mt-0 w-20px h-20px form-check-input cursor-pointer bg-transparent text-white rounded border-2" 
                                 style="margin-right:-4px"
                             >
@@ -599,8 +601,11 @@ document.addEventListener("DOMContentLoaded", function() {
                         userId: this.userId,
                         allProducts: true,
                     };
-                    this.timeRangeGet();
-                    this.marketplacesList(data);
+                    if (this.isFilterActive) {
+                        this.simpleCheckbox("topPosts", 1, "get");
+                        this.timeRangeGet();
+                        this.marketplacesList(data);
+                    }
                 },
                 handleClickOutside(event) {
                     // === ПРОВЕРКА ДЛЯ ГЛАВНОГО ФИЛЬТРА ===
@@ -744,26 +749,39 @@ document.addEventListener("DOMContentLoaded", function() {
                             this.ajaxAnswer = error.message;
                         });
                 },
-                simpleCheckbox(type, isChecked) {
-                    console.log(`Чекбокс типа [${type}] изменил состояние на: ${isChecked}`);
+                async simpleCheckbox(type, isChecked, method) {
+                    console.log(`Действие [${method}] для чекбокса [${type}]`);
                     
                     const data = {
                         userId: this.userId,
                         type: type,         
-                        checked: isChecked ? 1 : 0 // Приводим к 1 или 0, чтобы Битриксу было проще работать в БД
+                        checked: isChecked ? 1 : 0, 
+                        method: method
                     };
 
-                    this.sendRequest('user/simpleCheckbox.php', data)
-                        .then(result => {   
-                            // Если бэкенд вернул сообщение (например, "Настройки сохранены"), выводим его во всплывашку
-                            if (result && result.message) {
-                                this.ajaxAnswer = result.message;
+                    try {
+                        const result = await this.sendRequest('user/simpleCheckbox.php', data);
+                        
+                        // ЕСЛИ ЭТО МЕТОД GET — метод сам находит переменную в data() и меняет её статус
+                        if (method === 'get') {
+                            if (result && result.success) {
+                                const variableName = type + 'Checked'; // Получаем строку 'topPostsChecked'
+                                
+                                if (variableName in this) {
+                                    this[variableName] = result.checked === 1; // Динамически меняем статус галочки
+                                }
                             }
-                        })
-                        .catch(error => {
-                            console.error("Ошибка сохранения чекбокса:", error);
-                            this.ajaxAnswer = "Не удалось сохранить настройки фильтра.";
-                        });
+                            return result;
+                        }
+
+                        // Если это метод UPDATE — выводим сообщение во всплывашку
+                        if (result && result.message) {
+                            this.ajaxAnswer = result.message;
+                        }
+                    } catch (error) {
+                        console.error("Ошибка при работе с универсальным чекбоксом:", error);
+                        this.ajaxAnswer = method === 'update' ? "Не удалось сохранить настройки." : "Не удалось загрузить настройки.";
+                    }
                 }
                 
 
