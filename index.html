@@ -122,8 +122,8 @@ input::placeholder {
                             <input 
                                 type="checkbox" 
                                 ref="topPostsCheckRef"
-                                v-model="topPostsChecked"
-                                @change="simpleCheckbox('topPosts', topPostsChecked, 'update');"
+                                v-model="topPosts"
+                                @change="simpleCheckbox('topPosts', topPosts, 'update');"
                                 @click.stop
                                 class="ms-2 mt-0 w-20px h-20px form-check-input cursor-pointer bg-transparent text-white rounded border-2" 
                                 style="margin-right:-4px"
@@ -764,12 +764,8 @@ document.addEventListener("DOMContentLoaded", function() {
                         
                         // ЕСЛИ ЭТО МЕТОД GET — метод сам находит переменную в data() и меняет её статус
                         if (method === 'get') {
-                            if (result && result.success) {
-                                const variableName = type + 'Checked'; // Получаем строку 'topPostsChecked'
-                                
-                                if (variableName in this) {
-                                    this[variableName] = result.checked === 1; // Динамически меняем статус галочки
-                                }
+                            if (result && result.success) {                                
+                                this.type = result.checked; // Динамически меняем статус галочки
                             }
                             return result;
                         }
