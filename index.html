@@ -498,29 +498,7 @@ document.addEventListener("DOMContentLoaded", function() {
                                 this.userId = userId; 
                                 
                                 this.permanentAnswer = `Авторизация на портале...`;
-                                //this.ajaxAnswer = "Ожидание ответа от user/registration.php...";
-
-                                this.sendRequest('user/registration.php', { userId: this.userId })
-                                    .then(resData => {
-                                        this.permanentAnswer = "Авторизация успешна! Запускаем вывод резделов()...";
-                                        if (resData && resData.message) {
-                                            this.ajaxAnswer = "Ответ сервера: " + resData.message;
-                                        }
-                                        
-                                        // Пытаемся запустить загрузку разделов
-                                        try {
-                                            this.loadMainSections();
-                                        } catch (loadError) {
-                                            this.permanentAnswer = "💥 Краш внутри метода loadMainSections!";
-                                            this.ajaxAnswer = "Ошибка: " + loadError.message;
-                                        }
-                                    })
-                                    .catch(error => {
-                                        // Если файл регистрации вернул ошибку (например 403 из-за secure.php)
-                                        this.permanentAnswer = "⚠️ Сбой API регистрации. Фолбэк на loadMainSections...";
-                                        this.ajaxAnswer = "Детали сбоя API: " + (error.message || JSON.stringify(error));
-                                        this.loadMainSections();
-                                    });
+                                this.loadMainSections();
                             } else {
                                 this.permanentAnswer = "Предупреждение: Данные профиля недоступны. Пробуем загрузить каталог...";
                                 this.loadMainSections();
