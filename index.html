@@ -43,14 +43,13 @@
 
 
 <body id="app" class="d-flex flex-column justify-content-center bg-color text-white p-3">
-        <!-- 1. Этот блок виден ТОЛЬКО во время загрузки Vue -->
-    <div class="d-flex flex-column justify-content-center align-items-center">
+    
+    <div v-if="!pageReady" class="d-flex flex-column justify-content-center align-items-center m-auto">
         <div class="text-center">
-            <span id="vueLoad" class="fs-6">Загрузка, пожалуйста, подождите...</span>
-            <span id="permanentAnswer" class="fs-6 d-none">{{ permanentAnswer }}</span>
+            <span id="permanentAnswer" class="fs-6">{{ permanentAnswer }}</span>
         </div>
 
-        <div id="isAlternativeEntranceVisible" v-if="isAlternativeEntranceVisible" class="text-center w-300px">
+        <div class="text-center w-300px">
             <input 
                 type="text"
                 v-model="verificationCode" 
@@ -58,7 +57,6 @@
                 maxlength="12"
                 class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2 mt-3"
             />
-            <!-- Кнопка теперь всегда активна и нажимается без задержек -->
             <button 
                 @click="verifyCode"
                 class="btn btn-primary btn-lg w-100 fw-bold mt-3"
@@ -66,7 +64,6 @@
                 Войти
             </button>
         </div>
-        
     </div>
 
     <transition id="transitionAjaxAnswer" name="fade" v-if="pageReady">
@@ -243,38 +240,6 @@
         </div>
     </div>
 
-<div id="tg-script-container"></div>
-<script>
-  (function() {
-    const hostname = window.location.hostname;
-    
-    // Если в домене есть megasborka — это 100% обычный браузер на ПК.
-    // На всякий случай добавляем localhost, если тестируете проект локально.
-    const isWebBrowserSite = hostname.includes('megasborka.ru') || hostname === 'localhost' || hostname === '127.0.0.1';
-    
-    const script = document.createElement('script');
-    
-    if (isWebBrowserSite) {
-        // Пользователь на обычном сайте -> мгновенно берем локальный скрипт, обходя блокировки
-        console.log("[SDK Loader] Обнаружен сайт.");
-    } else {
-        // Пользователь зашел на yamer1.github.io (внутри Telegram Mini App) -> качаем оригинал
-        console.log("[SDK Loader] Обнаружено окружение Telegram. Загружаю официальный SDK...");
-        script.src = "https://telegram.org/js/telegram-web-app.js"; // <-- ИСПРАВЛЕНО ЗДЕСЬ
-      
-        // Страховка: если официальный CDN вдруг ляжет внутри самого WebView Telegram
-        script.onerror = function() {
-            console.warn("[SDK Loader] Ошибка официального CDN. Фолбэк на локальную копию...");
-            const fallback = document.createElement('script');
-            fallback.src = 'telegram/telegram-web-app.js';
-            document.head.appendChild(fallback);
-        };
-    }
-
-    document.getElementById('tg-script-container').appendChild(script);
-  })();
-</script>
-
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
@@ -284,19 +249,17 @@ document.addEventListener("DOMContentLoaded", function() {
             data() {
                 return {
                     pageReady: false,
-                    isScriptLoaded: false,
-                    shouldProceed: true,
                     mainSections: [],
                     userId: null,
-                    permanentAnswer: "",
+                    verificationCode: "",
+                    permanentAnswer: "Для входа в приложение введите код авторизации из Telegram-бота:",
                     ajaxAnswer: null,
                     isFilterActive: false,
                     isFilterMarketplaceActive: false,
                     timeRangeFilterActive: false,
                     marketplaces: [],
                     startTime: '00:00',
-                    endTime: '24:00',
-                    isAlternativeEntranceVisible: false
+                    endTime: '24:00'
                 };
             },
             // ДОБАВЛЯЕМ СЕКЦИЮ WATCH
@@ -318,40 +281,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
             },
             mounted() {
-                console.log("Закрытие блока инфо загрузки");
-                document.getElementById("vueLoad").classList.add("d-none");
-                console.log("Открытие блока постоянного текста");
-                document.getElementById("permanentAnswer").classList.remove("d-none");
-                console.log("Постоянный текст открыт");
-                //document.getElementById("transitionAjaxAnswer").classList.remove("d-none");
-                //document.getElementById("pageContent").classList.remove("d-none");
-                // Запускаем безопасное ожидание загрузки скрипта Telegram
-                this.permanentAnswer = "Загрузка приложения, пожалуйста, подождите...";
-                this.ensureTelegramLoaded((success) => {
-                    if (success) {
-                        this.permanentAnswer = "Telegram SDK успешно инициализирован, запускаем приложение...";
-                        
-                        // ОБЕРТЫВАЕМ В TRY-CATCH ДЛЯ ТОЧНОЙ ОТЛАДКИ
-                        try {
-                            console.log("[Vue Init] Запуск метода initTelegramApp()");
-                            this.initTelegramApp(); 
-                            console.log("[Vue Init] Метод initTelegramApp() выполнен успешно!");
-                        } catch (error) {
-                            console.error("Критическая ошибка внутри initTelegramApp:", error);
-                            this.permanentAnswer = "Ошибка инициализации приложения!";
-                            this.ajaxAnswer = `Детали ошибки: ${error.message}`;
-                            this.shouldProceed = false;
-                        }
-
-                    } else {
-                        console.error("Критическая ошибка: не удалось дождаться загрузки Telegram SDK.");
-                        this.userId = 0;
-                        this.permanentAnswer = "Не удалось войти, ошибка 0. Отправьте боту команду /code для авторизации, затем вставьте полученный ID в поле ниже:";
-                        this.isAlternativeEntranceVisible = true;
-                        this.shouldProceed = false;
-                    }
-                });
-
                 document.addEventListener('click', this.handleClickOutside);
             },
             beforeUnmount() { // Если у вас Vue 2, замените на destroyed()
@@ -400,122 +329,6 @@ document.addEventListener("DOMContentLoaded", function() {
                         throw new Error(`Не удалось связаться с сервером.\nСсылка: ${url}\nПричина: ${error.message}`);
                     }
                 },
-
-
-                // Метод проверяет наличие скрипта, а если его нет — ждет до 5 секунд
-                ensureTelegramLoaded(callback) {
-                    let attempts = 0;
-                    const maxAttempts = 50; // 50 попыток * 100мс = 5 секунд ожидания
-
-                    const check = () => {
-                        // Проверяем наличие глобального объекта Telegram
-                        const loaded = typeof window.Telegram !== 'undefined' && typeof window.Telegram.WebApp !== 'undefined';
-                        
-                        console.log(`[Telegram Load Check] Попытка ${attempts}: Статус загрузки = ${loaded}`);
-                        
-                        if (loaded) {
-                            console.log("[Telegram Load Check] Telegram SDK успешно обнаружен в window!");
-                            if (typeof this.isScriptLoaded !== 'undefined') {
-                                this.isScriptLoaded = true;
-                            }
-                            callback(true);
-                        } else if (attempts < maxAttempts) {
-                            attempts++;
-                            setTimeout(check, 100); 
-                        } else {
-                            console.error("[Telegram Load Check] Превышено время ожидания Telegram SDK (5 секунд).");
-                            if (typeof this.isScriptLoaded !== 'undefined') {
-                                this.isScriptLoaded = false;
-                            }
-                            callback(false); 
-                        }
-                    };
-
-                    check();
-                },
-
-                initTelegramApp() {
-                    console.log("Проверка подключения к телеграм");
-                    
-                    let attempts = 0;
-                    
-                    const checkScriptAndProceed = () => {
-                        this.isScriptLoaded = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
-                        
-                        if (!this.isScriptLoaded) {
-                            if (typeof window.Telegram?.WebApp === 'undefined') {
-                                if (attempts < 5) {
-                                    attempts++;
-                                    this.permanentAnswer = `Ожидание Telegram SDK... Попытка ${attempts} из 5`;
-                                    setTimeout(checkScriptAndProceed, 500);
-                                    return;
-                                } else {
-                                    this.userId = 0;
-                                    this.permanentAnswer = "Не удалось войти, ошибка 1. Отправьте боту команду /code для авторизации, затем вставьте полученный ID в поле ниже:";
-                                    this.isAlternativeEntranceVisible = true;
-                                    this.shouldProceed = false;
-                                    return;
-                                }
-                            }
-                        }
-
-                        // --- СКРИПТ УСПЕШНО ЗАГРУЖЕН! ---
-                        console.log(`Связь с Telegram SDK установлена на попытке №${attempts}`);
-                        this.permanentAnswer = "Компоненты Telegram загружены. Проверяем окружение...";
-
-                        const isInsideTelegram = window.Telegram.WebApp.initData !== "";
-
-                        if (!isInsideTelegram) {    
-                            const isDebugHostname = window.location.hostname === "dev.megasborka.ru";
-
-                            if (!isDebugHostname) {
-                               /* this.userId = 0;
-                                this.permanentAnswer = "Критическая ошибка!\nБот работает только через официальное приложение Telegram!\n\nСообщите, пожалуйста, администратору @ya_yura1 об ошибке";
-                                this.shouldProceed = false;
-                                return;
-                            } else {*/
-                                this.permanentAnswer = "Включаем режим отладки на dev...";
-                                const debugUserId = "661648698"; 
-                                this.userId = debugUserId; 
-                                this.ajaxAnswer = "Режим отладки: Запуск loadMainSections()...";
-                                this.loadMainSections();
-                                return;
-                            }
-                        }
-
-                        // --- БОЕВОЙ БЛОК ВНУТРИ ТЕЛЕГРАМА ---
-                        try {
-                            this.permanentAnswer = "Инициализация WebApp (tg.ready и tg.expand)...";
-                            const tg = window.Telegram.WebApp;
-                            tg.ready();
-                            tg.expand();
-
-                            this.permanentAnswer = "Считываем данные пользователя (initDataUnsafe)...";
-                            const data = tg.initDataUnsafe;
-
-                            if (data && data.user && data.user.id) {
-                                const userId = data.user.id;
-                                this.userId = userId; 
-                                
-                                this.permanentAnswer = `Авторизация на портале...`;
-                                this.loadMainSections();
-                            } else {
-                                this.permanentAnswer = "Предупреждение: Данные профиля недоступны. Пробуем загрузить каталог...";
-                                this.loadMainSections();
-                            }
-
-                        } catch (jsError) {
-                            this.permanentAnswer = "💥 Ошибка выполнения Telegram SDK!";
-                            this.ajaxAnswer = "Текст: " + jsError.message + "\n\nСтек: " + jsError.stack;
-                            this.shouldProceed = false;
-                        }
-                    };
-
-                    checkScriptAndProceed();
-                },
-
-
-                
                 fetchSection(filter, select) {
                     const userId = this.userId;
                     
@@ -525,7 +338,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 },
 
                 loadMainSections() {
-                    if (!this.shouldProceed) return;
                     
                     console.log("Загрузка разделов");
                     this.permanentAnswer = "Загружаем категории товаров...";
@@ -887,15 +699,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     this.sendRequest('user/verifyCode.php', data)
                         .then(result => {   
                             if (result && result.success) {
-                                // Если бэкенд подтвердил код:
-                                this.userId = result.userId; // Записываем полученный Telegram ID во Vue
+                                this.userId = result.userId; 
                                 this.ajaxAnswer = result.message;
                                 
-                                // Переключаем интерфейс на показ каталога
-                                this.shouldProceed = true;
-                                this.isAlternativeEntranceVisible = false;
-                                
-                                // Вызываем метод загрузки основных разделов вашего меню
+                                // Просто вызываем загрузку категорий. 
+                                // При успешном ответе метод loadMainSections сам переключит pageReady в true!
                                 this.loadMainSections(); 
                             } else {
                                 // Если код неверный или просрочен
