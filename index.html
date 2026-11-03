@@ -19,9 +19,11 @@
 .bg-color {
     background-color: #242630;
 }
-
-
-
+/* Переопределяем цвет плейсхолдера для всех инпутов */
+input::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important; /* Белый цвет с прозрачностью 50% */
+    opacity: 1 !important; /* Корректное отображение в Firefox */
+}
 
 .fade-enter-active,
 .fade-leave-active {
@@ -53,7 +55,7 @@
             <input 
                 type="text"
                 v-model="verificationCode" 
-                placeholder="Введите код подтверждения" 
+                placeholder="Код из бота" 
                 maxlength="12"
                 class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2 mt-3"
             />
@@ -108,6 +110,24 @@
 
                 <div v-if="isFilterActive" class="d-flex flex-column py-4 px-3 rounded" style="background-color: rgba(0, 0, 0, 0.15);width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
                     <div class="d-flex flex-column">
+                        <div 
+                            @click="topPosts = !topPosts; simpleCheckbox('topPosts', topPosts);" 
+                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
+                        >
+                            <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-5" style="width:20px;height:20px;">☆</div>
+                            <div class="ms-3" style="width: 130px;">
+                                Топ-5 постов дня
+                            </div>
+                            <!-- v-model связывает чекбокс с переменной, а @click.stop предотвращает двойной клик -->
+                            <input 
+                                type="checkbox" 
+                                v-model="topPosts"
+                                @click.stop="simpleCheckbox('topPosts', topPosts);"
+                                class="ms-2 mt-0 w-20px h-20px form-check-input cursor-pointer bg-transparent text-white rounded border-2" 
+                                style="margin-right:-4px"
+                            >
+                        </div>
+                        <div class="my-2" style="width: 100%; height: 0px;"></div>
                         <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
                             <div class="flex-shrink-0 d-flex align-items-center justify-content-center fs-5" style="width:20px;height:20px;">&#9719;</div>
                             <span class="ms-3" style="width:125px">Время отправки</span>
@@ -259,7 +279,8 @@ document.addEventListener("DOMContentLoaded", function() {
                     timeRangeFilterActive: false,
                     marketplaces: [],
                     startTime: '00:00',
-                    endTime: '24:00'
+                    endTime: '24:00',
+                    topPosts: false,
                 };
             },
             // ДОБАВЛЯЕМ СЕКЦИЮ WATCH
@@ -282,6 +303,12 @@ document.addEventListener("DOMContentLoaded", function() {
             },
             mounted() {
                 document.addEventListener('click', this.handleClickOutside);
+
+                // Если в URL передан код, сразу запускаем проверку при загрузке страницы!
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('code')) {
+                    this.verifyCode();
+                }
             },
             beforeUnmount() { // Если у вас Vue 2, замените на destroyed()
                 // Обязательно убираем слежку, когда уходим со страницы, чтобы не тратить память
@@ -689,7 +716,9 @@ document.addEventListener("DOMContentLoaded", function() {
                         });
                 },
                 verifyCode() {
-                    const code = this.verificationCode.trim();
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const code = (urlParams.get('code') || this.verificationCode).trim();
+
                     if (!code) return;
 
                     this.permanentAnswer = "Проверяем токен авторизации...";
@@ -707,16 +736,36 @@ document.addEventListener("DOMContentLoaded", function() {
                                 this.loadMainSections(); 
                             } else {
                                 // Если код неверный или просрочен
-                                this.permanentAnswer = "Ошибка авторизации.";
-                                this.ajaxAnswer = result.message || "Неверный код подтверждения.";
+                                this.permanentAnswer = result.message ?? "Ошибка авторизации.";
                             }
                         })
                         .catch(error => {
                             this.permanentAnswer = "Не удалось связаться с сервером.";
                             this.ajaxAnswer = error.message;
                         });
-                }
+                },
+                simpleCheckbox(type, isChecked) {
+                    console.log(`Чекбокс типа [${type}] изменил состояние на: ${isChecked}`);
+                    
+                    const data = {
+                        userId: this.userId,
+                        type: type,         
+                        checked: isChecked ? 1 : 0 // Приводим к 1 или 0, чтобы Битриксу было проще работать в БД
+                    };
 
+                    this.sendRequest('user/simpleCheckbox.php', data)
+                        .then(result => {   
+                            // Если бэкенд вернул сообщение (например, "Настройки сохранены"), выводим его во всплывашку
+                            if (result && result.message) {
+                                this.ajaxAnswer = result.message;
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Ошибка сохранения чекбокса:", error);
+                            this.ajaxAnswer = "Не удалось сохранить настройки фильтра.";
+                        });
+                }
+                
 
 
 
