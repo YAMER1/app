@@ -764,8 +764,12 @@ document.addEventListener("DOMContentLoaded", function() {
                         
                         // ЕСЛИ ЭТО МЕТОД GET — метод сам находит переменную в data() и меняет её статус
                         if (method === 'get') {
-                            if (result && result.success) {                                
-                                this.type = result.checked; // Динамически меняем статус галочки
+                            // ИСПРАВЛЕНО: Безопасная проверка наличия свойства checked в ответе
+                            if (result && Object.prototype.hasOwnProperty.call(result, 'checked')) {
+                                if (type in this) {
+                                    // Приводим к true, если checked равен 1 или true
+                                    this[type] = result.checked == 1 || result.checked === true;
+                                }
                             }
                             return result;
                         }
