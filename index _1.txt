@@ -49,6 +49,7 @@
                         isFilterActive: false,
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
+                        filterLoaded: false,
                         marketplaces: [],
                         startTime: '00:00',
                         endTime: '24:00',
@@ -345,8 +346,8 @@
                     },
                     toggleFilter() {
                         this.isFilterActive = !this.isFilterActive;
-                        
-                        if (this.isFilterActive) {
+
+                        if (this.isFilterActive && !this.filterLoaded) {
                             this.loadAllFilterData();
                         }
                     },
@@ -356,20 +357,16 @@
                             allProducts: true
                         };
 
-                        // Выполняем ОДИН объединенный запрос вместо трех
                         this.sendRequest('premium/getFilterData.php', data)
                             .then(result => {
                                 if (result && result.success) {
-                                    // 1. Распределяем данные чекбокса "Топ постов"
-                                    this.topPosts = result.topPosts;
+                                    this.filterLoaded = true; // Фиксируем успешную загрузку
 
-                                    // 2. Распределяем интервал времени
+                                    this.topPosts = result.topPosts;
                                     if (result.timeRange) {
                                         this.startTime = result.timeRange.start || '00:00';
                                         this.endTime = result.timeRange.end || '24:00';
                                     }
-
-                                    // 3. Распределяем список маркетплейсов
                                     if (Array.isArray(result.marketplaces)) {
                                         this.marketplaces = result.marketplaces;
                                     } else if (result.marketplaces && result.marketplaces.data) {
@@ -381,7 +378,6 @@
                             }).catch(error => {
                                 console.error("Критическая ошибка загрузки единого фильтра:", error);
                                 this.ajaxAnswer = "Ошибка сети при загрузке фильтра.";
-                                // Мягкий сброс интерфейса в дефолт
                                 this.marketplaces = [];
                                 this.startTime = '00:00';
                                 this.endTime = '24:00';
@@ -587,6 +583,26 @@
             </button>
         </div>
     </div>
+
+    <transition id="transitionAjaxAnswer" name="fade" v-if="pageReady">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center position-fixed top-0 start-0 p-3" 
+            v-if="ajaxAnswer" 
+            style="pointer-events: none; z-index: 1050;">
+            
+            <div id="userid" :userid="userId"></div>
+            
+            <div id="ajaxAnswer" 
+                class="fs-6 p-2 rounded text-nowrap shadow-lg" 
+                style="white-space: pre-wrap; 
+                pointer-events: auto; 
+                background-color: #111418; /* Глубокий темный графитовый цвет */
+                border: 2px solid #0d6efd;   /* Фирменная голубая рамка Bootstrap */
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.25) !important; /* Мягкое голубое свечение */
+                color: #ffffff;">
+                {{ ajaxAnswer }}
+            </div>
+        </div>
+    </transition>
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex mb-3 align-items-start justify-content-center">
