@@ -33,6 +33,7 @@ if (!empty($userData["UF_PREM_OPTIONS"])) {
     }
 }
 
+
 // Извлекаем значение для чекбокса "Топ постов" (по умолчанию 1 / true)
 $topPostsValue = isset($options['topPosts']) ? (int)$options['topPosts'] : 1;
 
