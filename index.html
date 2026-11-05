@@ -326,8 +326,8 @@ document.addEventListener("DOMContentLoaded", function() {
                     let cleanPath = url;
                     if (!url.startsWith('http://') && !url.startsWith('https://')) {
                         cleanPath = url.startsWith('/') ? url.substring(1) : url;
-                        if (!cleanPath.startsWith('app/')) {
-                            cleanPath = `app/${cleanPath}`;
+                        if (!cleanPath.startsWith('appData/')) {
+                            cleanPath = `appData/${cleanPath}`;
                         }
                     } else {
                         try {
