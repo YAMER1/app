@@ -128,7 +128,7 @@
                             }
 
                             const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 15000); 
+                            const timeoutId = setTimeout(() => controller.abort(), 7000); 
 
                             try {
                                 const fullUrl = `${domain}/${cleanPath}`;
@@ -143,7 +143,7 @@
                                 const securePayload = { 
                                     ...payload, 
                                     // Если есть секрет сессии — шлем его, иначе шлем одноразовый код из инпута/URL
-                                    secret: this.authSecret || localStorage.getItem('authSecret') || "",
+                                    secret: this.secret || localStorage.getItem('secret') || "",
                                     code: this.code || "" 
                                 };
                                 
@@ -161,7 +161,14 @@
                                     throw new Error(`HTTP Error: ${response.status}`);
                                 }
 
-                                return await response.json();
+                                const resData = await response.json();
+                                
+                                // ЦЕНТРАЛИЗОВАННЫЙ ВЫВОД: Если сервер вернул текстовое сообщение, показываем его
+                                if (resData && resData.message) {
+                                    this.ajaxAnswer = resData.message;
+                                }
+                                
+                                return resData;
                             } catch (err) {
                                 clearTimeout(timeoutId);
                                 throw err;
@@ -254,32 +261,15 @@
                     onSubSectionClick(subSection, mainSection) {
                         console.log('SubSection clicked:', subSection, 'parent MainSection:', mainSection);
                     },
-                    
-                    sectionSubscriptionFetch(data) {
-                        // Наша функция sendRequest сама кодирует объекты в JSON под капотом,
-                        // поэтому передаем data как есть, без предварительного JSON.stringify.
-                        return this.sendRequest("section/subscription.php", data)
-                            .then(resData => {
-                                // Сохраняем текстовый ответ сервера, если он пришел
-                                if (resData && resData.message) {
-                                    this.ajaxAnswer = resData.message; 
-                                }
-                            })
-                            .catch(error => {
-                                console.error("Ошибка при отправке данных подписки:", error);
-                                this.ajaxAnswer = "Ошибка при оформлении подписки.";
-                            });
-                    },
-
                     async sectionSubscription(sectionType, section, parentSection = null, index) {
-                        // ИСПРАВЛЕНО: Добавлены const для предотвращения ReferenceError
                         const initialData = {
                             userId: this.userId,
                             sectionType: sectionType,
                             sectionId: section.ID,
                             isChecked: section.checked
                         };
-                        await this.sectionSubscriptionFetch(initialData);
+                        // Вызываем напрямую sendRequest, уведомление покажется автоматически
+                        await this.sendRequest("section/subscription.php", initialData).catch(() => {});
 
                         if (sectionType === "mainSection") {
                             if (!section.subSections || !section.subSections.length) {
@@ -288,16 +278,7 @@
                                 section.subSections = this.mainSections[index].subSections;
                             }
 
-                            console.log("Проверка");
-                            console.log(section.subSections);
-                            console.log(section.subSections.length);
-                            console.log(section.checked);
-                            console.log(`Тип секции: ${sectionType}, ID: ${section.ID}, активен: ${section.checked}`);
-
                             if (section.subSections && section.subSections.length) {
-                                console.log(`Отмечаем все дочерние, пользователь ${this.userId}`);
-                                
-                                // Проставляем статус чекбоксов для всех дочерних элементов
                                 section.subSections.forEach(sub => {
                                     sub.checked = section.checked;
                                 });
@@ -311,14 +292,9 @@
                                 };
 
                                 console.log("Отмечаем подпись или отпись на дочерние разделы");
-                                // Ждем успешного сохранения дочерних подписок на сервере
-                                await this.sectionSubscriptionFetch(childrenData);
-
-                            } else {
-                                console.log("Не найдены дочерние разделы");
+                                await this.sendRequest("section/subscription.php", childrenData).catch(() => {});
                             }
                         } else {
-                            // Логика для дочернего раздела (subSection)
                             if (section.checked === true) {
                                 if (parentSection && parentSection.checked === false) { 
                                     const parentData = {
@@ -328,8 +304,7 @@
                                         isChecked: true
                                     };
 
-                                    // Автоматически включаем родительский раздел на сервере и в интерфейсе
-                                    await this.sectionSubscriptionFetch(parentData);
+                                    await this.sendRequest("section/subscription.php", parentData).catch(() => {});
                                     parentSection.checked = true; 
                                 }
                             }
@@ -349,15 +324,6 @@
                                 // Вся ваша логика разбора ответа полностью сохранена:
                                 if (Array.isArray(resData)) {
                                     this.marketplaces = resData;
-                                } 
-                                else if (resData && resData.data) {
-                                    // Исходная строка была закомментирована:
-                                    // this.marketplaces = resData.data;
-                                }
-                                
-                                // Записываем ответ сервера в переменную статуса
-                                if (resData && resData.message) {
-                                    this.ajaxAnswer = resData.message;
                                 }
                             })
                             .catch(error => {
@@ -528,11 +494,8 @@
                             endTime: this.endTime
                         };
 
-                        // Вызываем хелпер и обрабатываем ответ внутри .then()
-                        this.sendRequest('user/timeRange.php', data)
-                            .then(result => {   
-                                this.ajaxAnswer = result.message;
-                            });
+                        // Просто вызываем метод, уведомление отработает внутри sendRequest
+                        this.sendRequest('user/timeRange.php', data);
                     },
                     verifyCode(code) {
                         const cleanCode = (code || "").trim();
@@ -546,8 +509,6 @@
                         this.isLoggingIn = true;
                         this.permanentAnswer = "Проверяем токен авторизации...";
 
-                        // Жестко приводим значение кода к примитивной строке String(),
-                        // чтобы разорвать любые скрытые связи с объектами JavaScript
                         const safePayload = { 
                             code: String(cleanCode) 
                         };
@@ -557,7 +518,12 @@
                                 if (result && result.success) {
                                     this.userId = result.userId; 
                                     this.ajaxAnswer = result.message;
+                                    
+                                    // ИСПРАВЛЕНО: сохраняем secret не только в память Vue, 
+                                    // но и в localStorage для последующих сессий
                                     this.secret = result.secret; 
+                                    localStorage.setItem('secret', result.secret);
+                                    
                                     this.loadMainSections(); 
                                 } else {
                                     this.permanentAnswer = result.message ?? "Ошибка авторизации.";
@@ -578,19 +544,11 @@
                         };
 
                         try {
-                            const result = await this.sendRequest('user/simpleCheckbox.php', data);
-
-                            if (result && result.message) {
-                                this.ajaxAnswer = result.message;
-                            }
+                            await this.sendRequest('user/simpleCheckbox.php', data);
                         } catch (error) {
                             console.error("Ошибка при работе с универсальным чекбоксом:", error);
-                            this.ajaxAnswer = result.message;
                         }
                     }
-                    
-
-
 
                 }
             });
