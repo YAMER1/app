@@ -141,7 +141,8 @@
                                 console.log(`[Fetch API] Отправка на: ${fullUrl}`);
                                 
                                 const securePayload = { 
-                                    ...payload, 
+                                    ...payload,
+                                    secret: this.secret || "",
                                     code: this.code || "" 
                                 };
                                 
@@ -532,55 +533,42 @@
                                 this.ajaxAnswer = result.message;
                             });
                     },
-                    initAuth() {
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const codeFromUrl = urlParams.get('code');
+                    verifyCode(code) {
+                        const cleanCode = (code || "").trim();
 
-                        // Если мы зашли по ссылке с публичным кодом — запускаем авторизацию и обмен на секрет
-                        if (codeFromUrl && codeFromUrl.length === 18) {
-                            this.verifyCode(codeFromUrl);
-                        } else if (this.secret) {
-                            // Если кода в URL нет, но есть секрет в localStorage — мы уже авторизованы, загружаем данные
-                            this.loadDashboardData();
-                        } else {
-                            this.permanentAnswer = "Ошибка: Требуется авторизация через Telegram-бота.";
+                        if (!cleanCode) {
+                            this.permanentAnswer = "Код не может быть пустым.";
+                            return; 
                         }
-                    },
-                verifyCode(code) {
-                    const cleanCode = (code || "").trim();
+                        if (this.isLoggingIn) return;
 
-                    if (!cleanCode) {
-                        this.permanentAnswer = "Код не может быть пустым.";
-                        return; 
-                    }
-                    if (this.isLoggingIn) return;
+                        this.isLoggingIn = true;
+                        this.permanentAnswer = "Проверяем токен авторизации...";
 
-                    this.isLoggingIn = true;
-                    this.permanentAnswer = "Проверяем токен авторизации...";
+                        // Жестко приводим значение кода к примитивной строке String(),
+                        // чтобы разорвать любые скрытые связи с объектами JavaScript
+                        const safePayload = { 
+                            code: String(cleanCode) 
+                        };
 
-                    // Жестко приводим значение кода к примитивной строке String(),
-                    // чтобы разорвать любые скрытые связи с объектами JavaScript
-                    const safePayload = { 
-                        code: String(cleanCode) 
-                    };
-
-                    this.sendRequest('user/verifyCode.php', safePayload)
-                        .then(result => {   
-                            if (result && result.success) {
-                                this.userId = result.userId; 
-                                this.ajaxAnswer = result.message;
-                                this.loadMainSections(); 
-                            } else {
-                                this.permanentAnswer = result.message ?? "Ошибка авторизации.";
+                        this.sendRequest('user/verifyCode.php', safePayload)
+                            .then(result => {   
+                                if (result && result.success) {
+                                    this.userId = result.userId; 
+                                    this.ajaxAnswer = result.message;
+                                    this.secret = result.secret; 
+                                    this.loadMainSections(); 
+                                } else {
+                                    this.permanentAnswer = result.message ?? "Ошибка авторизации.";
+                                    this.isLoggingIn = false; 
+                                }
+                            })
+                            .catch(error => {
+                                this.permanentAnswer = `💥 Ошибка соединения с сервером!\n\nДетали: ${error.message}`;
+                                this.ajaxAnswer = error.message;
                                 this.isLoggingIn = false; 
-                            }
-                        })
-                        .catch(error => {
-                            this.permanentAnswer = `💥 Ошибка соединения с сервером!\n\nДетали: ${error.message}`;
-                            this.ajaxAnswer = error.message;
-                            this.isLoggingIn = false; 
-                        });
-                },
+                            });
+                    },
                     async simpleCheckbox(type, isChecked) {
                         console.log(`Действие [${method}] для чекбокса [${type}]`);
                         
