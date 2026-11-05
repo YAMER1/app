@@ -61,9 +61,10 @@ input::placeholder {
             />
             <button 
                 @click="verifyCode"
+                :disabled="isLoggingIn"
                 class="btn btn-primary btn-lg w-100 fw-bold mt-3"
             >
-                Войти
+                {{ isLoggingIn ? 'Вход...' : 'Войти' }}
             </button>
         </div>
     </div>
@@ -276,13 +277,14 @@ document.addEventListener("DOMContentLoaded", function() {
                     code: "",
                     permanentAnswer: "Для входа отправьте /code боту и введите полученный код:",
                     ajaxAnswer: null,
+                    isLoggingIn: false, // 1. Добавляем новый флаг состояния загрузки
                     isFilterActive: false,
                     isFilterMarketplaceActive: false,
                     timeRangeFilterActive: false,
                     marketplaces: [],
                     startTime: '00:00',
                     endTime: '24:00',
-                    topPosts: false,
+                    topPosts: true,
                 };
             },
             // ДОБАВЛЯЕМ СЕКЦИЮ WATCH
@@ -402,7 +404,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 },
 
                 loadMainSections() {
-                    
                     console.log("Загрузка разделов");
                     this.permanentAnswer = "Загружаем категории товаров...";
 
@@ -416,17 +417,18 @@ document.addEventListener("DOMContentLoaded", function() {
                                 });
                                 
                                 this.pageReady = true;
-                                this.permanentAnswer = null; // Успех! Полностью скрываем экран загрузки, открывая каталог
+                                this.permanentAnswer = null;
+                                this.isLoggingIn = false; // Сбрасываем флаг при полном успехе
                             } else {
-                                // ИСПРАВЛЕНО: Выводим неверный формат ответа Битрикса прямо в permanentAnswer
                                 this.permanentAnswer = `💥 Ошибка формата данных!\nСервер вернул некорректный ответ вместо списка категорий.\n\nДетали: ${JSON.stringify(response.message)}`;
                                 console.error("Ошибка: сервер вернул некорректный формат разделов", response);
+                                this.isLoggingIn = false; // Возвращаем кнопку, если Битрикс отдал странный JSON
                             }
                         })
                         .catch(err => {
-                            // ИСПРАВЛЕНО: Выводим сетевую или PHP-ошибку (403, 502, 500) прямо в permanentAnswer
                             this.permanentAnswer = `💥 Критический сбой при загрузке каталога!\nСмените страну на Казахстан, перезагрузите страницу!\n\nДетали сетевой ошибки: ${err.message || JSON.stringify(err)}`;
                             console.error("Ошибка загрузки основных разделов:", err);
+                            this.isLoggingIn = false; // Возвращаем кнопку при ошибке сети на этапе категорий
                         });
                 },
 
@@ -759,8 +761,9 @@ document.addEventListener("DOMContentLoaded", function() {
                     const urlParams = new URLSearchParams(window.location.search);
                     const code = (urlParams.get('code') || this.code).trim();
 
-                    if (!code) return;
+                    if (!code || this.isLoggingIn) return; // Защита от повторного вызова, если запрос уже летит
 
+                    this.isLoggingIn = true; // 2. Блокируем кнопку перед отправкой
                     this.permanentAnswer = "Проверяем токен авторизации...";
                     const data = { code: code };
 
@@ -771,17 +774,19 @@ document.addEventListener("DOMContentLoaded", function() {
                                 this.userId = result.userId; 
                                 this.ajaxAnswer = result.message;
                                 
-                                // Просто вызываем загрузку категорий. 
-                                // При успешном ответе метод loadMainSections сам переключит pageReady в true!
+                                // Загружаем категории. Метод сам переключит pageReady в true при успехе
                                 this.loadMainSections(); 
                             } else {
-                                // Если код неверный или просрочен
+                                // Если код неверный или просрочен — возвращаем кнопку в исходное состояние
                                 this.permanentAnswer = result.message ?? "Ошибка авторизации.";
+                                this.isLoggingIn = false; 
                             }
                         })
                         .catch(error => {
+                            // Если произошел сетевой сбой — возвращаем кнопку в исходное состояние
                             this.permanentAnswer = "Не удалось связаться с сервером.";
                             this.ajaxAnswer = error.message;
+                            this.isLoggingIn = false; 
                         });
                 },
                 async simpleCheckbox(type, isChecked, method) {
