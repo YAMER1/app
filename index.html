@@ -571,8 +571,6 @@
                             });
                     },
                     async simpleCheckbox(type, isChecked) {
-                        console.log(`Действие [${method}] для чекбокса [${type}]`);
-                        
                         const data = {
                             userId: this.userId,
                             type: type,         
@@ -587,7 +585,7 @@
                             }
                         } catch (error) {
                             console.error("Ошибка при работе с универсальным чекбоксом:", error);
-                            this.ajaxAnswer = method === 'update' ? "Не удалось сохранить настройки." : "Не удалось загрузить настройки.";
+                            this.ajaxAnswer = result.message;
                         }
                     }
                     
