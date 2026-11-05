@@ -124,7 +124,7 @@ input::placeholder {
                                 type="checkbox" 
                                 ref="topPostsCheckRef"
                                 v-model="topPosts"
-                                @change="simpleCheckbox('topPosts', topPosts, 'update');"
+                                @change="simpleCheckbox('topPosts', topPosts);"
                                 @click.stop
                                 class="cursor-pointer min-w-20px w-20px h-20px" 
                                 style="margin-right:-4px"
@@ -577,49 +577,6 @@ document.addEventListener("DOMContentLoaded", function() {
                             this.marketplaces = []; // Сбрасываем при ошибке, как в оригинале
                         });
                 },
-                timeRangeGet() {
-                    const data = {
-                        action: 'get',
-                        userId: this.userId
-                    };
-
-                    this.sendRequest('user/timeRange.php', data)
-                        .then(result => {
-                            if (result && result.status === 'success' && result.data) {
-                                // Заполняем поля ввода значениями из базы Битрикса
-                                this.startTime = result.data.start || '00:00';
-                                this.endTime = result.data.end || '24:00';
-                            } else {
-                                // Если настроек нет, выставляем круглосуточно
-                                this.startTime = '00:00';
-                                this.endTime = '24:00';
-                            }
-                        })
-                        .catch(error => {
-                            console.error("Ошибка при получении интервала времени:", error);
-                        });
-                },
-                marketplacesList(data) {
-                    // Вызываем общий метод отправки через this.
-                    this.sendRequest('marketplaces/list.php', data)
-                        .then(resData => {
-                            // Записываем ответ в зависимости от структуры, которую шлет Битрикс
-                            if (Array.isArray(resData)) {
-                                this.marketplaces = resData;
-                            } else if (resData && resData.data) {
-                                this.marketplaces = resData.data;
-                            }
-                            
-                            // Если сервер передал сообщение, сохраняем его
-                            if (resData && resData.message) {
-                                this.ajaxAnswer = resData.message;
-                            }
-                        })
-                        .catch(error => {
-                            this.ajaxAnswer = "Ошибка при получении списка: " + error.message;
-                            this.marketplaces = []; // Сбрасываем массив, чтобы интерфейс не завис
-                        });
-                },
                 toggleTimeRangeFilter() {
                     this.timeRangeFilterActive = !this.timeRangeFilterActive;
                     if(this.timeRangeFilterActive){
@@ -821,32 +778,18 @@ document.addEventListener("DOMContentLoaded", function() {
                             this.isLoggingIn = false; 
                         });
                 },
-                async simpleCheckbox(type, isChecked, method) {
+                async simpleCheckbox(type, isChecked) {
                     console.log(`Действие [${method}] для чекбокса [${type}]`);
                     
                     const data = {
                         userId: this.userId,
                         type: type,         
-                        checked: isChecked ? 1 : 0, 
-                        method: method
+                        checked: isChecked ? 1 : 0
                     };
 
                     try {
                         const result = await this.sendRequest('user/simpleCheckbox.php', data);
-                        
-                        // ЕСЛИ ЭТО МЕТОД GET — метод сам находит переменную в data() и меняет её статус
-                        if (method === 'get') {
-                            // ИСПРАВЛЕНО: Безопасная проверка наличия свойства checked в ответе
-                            if (result && Object.prototype.hasOwnProperty.call(result, 'checked')) {
-                                if (type in this) {
-                                    // Приводим к true, если checked равен 1 или true
-                                    this[type] = result.checked == 1 || result.checked === true;
-                                }
-                            }
-                            return result;
-                        }
 
-                        // Если это метод UPDATE — выводим сообщение во всплывашку
                         if (result && result.message) {
                             this.ajaxAnswer = result.message;
                         }
