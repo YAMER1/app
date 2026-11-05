@@ -588,6 +588,26 @@
         </div>
     </div>
 
+    <transition id="transitionAjaxAnswer" name="fade" v-if="pageReady">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center position-fixed top-0 start-0 p-3" 
+            v-if="ajaxAnswer" 
+            style="pointer-events: none; z-index: 1050;">
+            
+            <div id="userid" :userid="userId"></div>
+            
+            <div id="ajaxAnswer" 
+                class="fs-6 p-2 rounded text-nowrap shadow-lg" 
+                style="white-space: pre-wrap; 
+                pointer-events: auto; 
+                background-color: #111418; /* Глубокий темный графитовый цвет */
+                border: 2px solid #0d6efd;   /* Фирменная голубая рамка Bootstrap */
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.25) !important; /* Мягкое голубое свечение */
+                color: #ffffff;">
+                {{ ajaxAnswer }}
+            </div>
+        </div>
+    </transition>
+
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex mb-3 align-items-start justify-content-center">
             <div class="d-flex flex-column">
