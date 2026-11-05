@@ -632,17 +632,49 @@ document.addEventListener("DOMContentLoaded", function() {
                         this.ajaxAnswer = "Уберите лишние маркетплейсы";
                     }
                 },
-                toggleFilter(){
+                toggleFilter() {
                     this.isFilterActive = !this.isFilterActive;
+                    
+                    if (this.isFilterActive) {
+                        this.loadAllFilterData();
+                    }
+                },
+                loadAllFilterData() {
                     const data = {
                         userId: this.userId,
-                        allProducts: true,
+                        allProducts: true
                     };
-                    if (this.isFilterActive) {
-                        this.simpleCheckbox("topPosts", 1, "get");
-                        this.timeRangeGet();
-                        this.marketplacesList(data);
-                    }
+
+                    // Выполняем ОДИН объединенный запрос вместо трех
+                    this.sendRequest('premium/getFilterData.php', data)
+                        .then(result => {
+                            if (result && result.success) {
+                                // 1. Распределяем данные чекбокса "Топ постов"
+                                this.topPosts = result.topPosts;
+
+                                // 2. Распределяем интервал времени
+                                if (result.timeRange) {
+                                    this.startTime = result.timeRange.start || '00:00';
+                                    this.endTime = result.timeRange.end || '24:00';
+                                }
+
+                                // 3. Распределяем список маркетплейсов
+                                if (Array.isArray(result.marketplaces)) {
+                                    this.marketplaces = result.marketplaces;
+                                } else if (result.marketplaces && result.marketplaces.data) {
+                                    this.marketplaces = result.marketplaces.data;
+                                }
+                            } else {
+                                this.ajaxAnswer = "Не удалось загрузить настройки фильтра.";
+                            }
+                        }).catch(error => {
+                            console.error("Критическая ошибка загрузки единого фильтра:", error);
+                            this.ajaxAnswer = "Ошибка сети при загрузке фильтра.";
+                            // Мягкий сброс интерфейса в дефолт
+                            this.marketplaces = [];
+                            this.startTime = '00:00';
+                            this.endTime = '24:00';
+                        });
                 },
                 handleClickOutside(event) {
                     // === ПРОВЕРКА ДЛЯ ГЛАВНОГО ФИЛЬТРА ===
