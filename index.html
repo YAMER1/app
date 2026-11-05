@@ -141,8 +141,9 @@
                                 console.log(`[Fetch API] Отправка на: ${fullUrl}`);
                                 
                                 const securePayload = { 
-                                    ...payload,
-                                    secret: this.secret || "",
+                                    ...payload, 
+                                    // Если есть секрет сессии — шлем его, иначе шлем одноразовый код из инпута/URL
+                                    secret: this.authSecret || localStorage.getItem('authSecret') || "",
                                     code: this.code || "" 
                                 };
                                 
