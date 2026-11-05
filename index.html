@@ -147,7 +147,7 @@ input::placeholder {
                                         type="text" 
                                         :value="startTime"
                                         @input="applyMask($event, 'startTime')"
-                                        @blur="validateField('startTime'); timeRangeUpdate();" 
+                                        @blur="validateField('startTime'); timeRange();" 
                                         maxlength="5"
                                         placeholder="00:00"
                                         class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
@@ -161,7 +161,7 @@ input::placeholder {
                                         type="text" 
                                         :value="endTime"
                                         @input="applyMask($event, 'endTime')"
-                                        @blur="validateField('endTime'); timeRangeUpdate();" 
+                                        @blur="validateField('endTime'); timeRange();" 
                                         maxlength="5"
                                         placeholder="24:00"
                                         class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
@@ -736,7 +736,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                 },
 
-                timeRangeUpdate() {
+                timeRange() {
                     const data = {
                         action: 'update',
                         userId: this.userId,
