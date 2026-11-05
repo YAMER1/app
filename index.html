@@ -318,44 +318,79 @@ document.addEventListener("DOMContentLoaded", function() {
             },
             methods: {
                 async sendRequest(url, payload) {
-                    try {
-                        // --- УМНАЯ КОРРЕКТИРОВКА URL ДЛЯ CDN GCORE ---
-                        // Если url не начинается с http:// или https://, значит это относительный путь
-                        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    const PRIMARY_DOMAIN = 'https://app.megasborka.ru';
+                    const FALLBACK_DOMAIN = 'https://megasborka.ru';
+                    
+                    // 1. Стандартизируем относительный путь (удаляем ведущий слэш, если он есть)
+                    let cleanPath = url;
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        cleanPath = url.startsWith('/') ? url.substring(1) : url;
+                        // ПРОВЕРКА: Если путь уже начинается с "app/", папка не дублируется
+                        if (!cleanPath.startsWith('app/')) {
+                            cleanPath = `app/${cleanPath}`;
+                        }
+                    } else {
+                        // Если передан абсолютный URL, извлекаем из него только путь для возможности переключения доменов
+                        try {
+                            const urlObj = new URL(url);
+                            cleanPath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+                        } catch (e) {
+                            cleanPath = url;
+                        }
+                    }
+
+                    // Функция для выполнения запроса с ограничением по времени (таймаут 6 секунд)
+                    const fetchWithTimeout = async (domain) => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 6000); // 6000 мс = 6 сек
+
+                        try {
+                            const fullUrl = `${domain}/${cleanPath}`;
+                            console.log(`[Fetch API] Попытка запроса: ${fullUrl}`);
                             
-                            // Очищаем первый слэш для стандартизации (например, "/user/reg.php" -> "user/reg.php")
-                            const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
-                            
-                            // ПРОВЕРКА: Если путь уже начинается с "app/", то папку не дублируем
-                            if (cleanUrl.startsWith('app/')) {
-                                url = `https://app.megasborka.ru/${cleanUrl}`;
-                            } else {
-                                // Если папки "app/" в пути не было, жестко добавляем её вместе с поддоменом
-                                url = `https://app.megasborka.ru/app/${cleanUrl}`;
+                            const response = await fetch(fullUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'text/plain',
+                                },
+                                body: JSON.stringify(payload)
+                            });
+
+                            clearTimeout(timeoutId);
+
+                            // Если сервер ответил ошибкой 5xx или 4xx, падаем в catch для переключения на резерв
+                            if (!response.ok) {
+                                throw new Error(`Ошибка сервера: ${response.status} (${response.statusText})`);
                             }
+
+                            return await response.json();
+                        } catch (err) {
+                            clearTimeout(timeoutId);
+                            throw err;
                         }
-                        console.log(`[Fetch API] Отправка запроса на полный адрес: ${url}`);
-                        // ----------------------------------------------
+                    };
 
-                        //const tgInitData = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initData : '';
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'text/plain',
-                            },
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (!response.ok) {
-                            throw new Error(`Ошибка сервера: ${response.status} (${response.statusText})`);
-                        }
-
-                        return await response.json(); // Возвращаем готовый ответ от Битрикса
-                    } catch (error) {
-                        console.error("Ошибка при отправке запроса:", error);
+                    // --- ЛОГИКА РЕЗЕРВИРОВАНИЯ (FALLBACK) ---
+                    try {
+                        // Попытка №1: Запрос к основному серверу (GCORE CDN)
+                        return await fetchWithTimeout(PRIMARY_DOMAIN);
+                    } catch (primaryError) {
+                        console.warn(`[Fallback] Основной сайт (${PRIMARY_DOMAIN}) недоступен. Причина: ${primaryError.message}`);
+                        console.log(`[Fallback] Переключение на резервный сайт: ${FALLBACK_DOMAIN}`);
                         
-                        // Передаем ошибку наверх, чтобы блоки .catch в loadMainSections() её поймали и вывели на экран
-                        throw new Error(`Не удалось связаться с сервером.\nСсылка: ${url}\nПричина: ${error.message}`);
+                        try {
+                            // Попытка №2: Запрос к резервному сайту напрямую
+                            return await fetchWithTimeout(FALLBACK_DOMAIN);
+                        } catch (fallbackError) {
+                            console.error("[Fallback] Критическая ошибка: Оба источника недоступны!");
+                            
+                            // Формируем понятный текст ошибки для вывода на экран в интерфейсе Vue
+                            throw new Error(
+                                `Не удалось связаться ни с одним сервером.\n` +
+                                `Основной (${PRIMARY_DOMAIN}): ${primaryError.message}\n` +
+                                `Резервный (${FALLBACK_DOMAIN}): ${fallbackError.message}`
+                            );
+                        }
                     }
                 },
                 fetchSection(filter, select) {
