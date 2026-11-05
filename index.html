@@ -55,12 +55,13 @@ input::placeholder {
             <input 
                 type="text"
                 v-model="code" 
+                @keydown.enter="verifyCode(code)"
                 placeholder="Код из бота" 
                 maxlength="18"
                 class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2 mt-3"
             />
             <button 
-                @click="verifyCode"
+                @click="verifyCode(code)"
                 :disabled="isLoggingIn"
                 class="btn btn-primary btn-lg w-100 fw-bold mt-3"
             >
@@ -308,10 +309,13 @@ document.addEventListener("DOMContentLoaded", function() {
             mounted() {
                 document.addEventListener('click', this.handleClickOutside);
 
-                // Если в URL передан код, сразу запускаем проверку при загрузке страницы!
+                // Вытягиваем код из GET-параметра URL-строки
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('code')) {
-                    this.verifyCode();
+                const urlCode = urlParams.get('code');
+                
+                if (urlCode) {
+                    this.code = urlCode;
+                    this.verifyCode(urlCode);
                 }
             },
             beforeUnmount() { // Если у вас Vue 2, замените на destroyed()
@@ -746,33 +750,33 @@ document.addEventListener("DOMContentLoaded", function() {
                             this.ajaxAnswer = result.message;
                         });
                 },
-                verifyCode() {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const code = (urlParams.get('code') || this.code).trim();
+                verifyCode(code) {
+                    // 1. Сначала объявляем и очищаем переменную из аргумента
+                    const cleanCode = (code || "").trim();
 
-                    if (!code || this.isLoggingIn) return; // Защита от повторного вызова, если запрос уже летит
+                    // 2. Теперь безопасно проверяем её на пустоту
+                    if (!cleanCode) {
+                        this.permanentAnswer = "Код не может быть пустым.";
+                        return; // Мгновенно выходим из функции
+                    }
+                    if (this.isLoggingIn) return;
 
-                    this.isLoggingIn = true; // 2. Блокируем кнопку перед отправкой
+                    this.isLoggingIn = true;
                     this.permanentAnswer = "Проверяем токен авторизации...";
-                    const data = { code: code };
 
-                    // Отправляем токен на проверку в Битрикс
-                    this.sendRequest('user/verifyCode.php', data)
+                    // 3. Передаем уже очищенный рабочий код в Битрикс
+                    this.sendRequest('user/verifyCode.php', { code: cleanCode })
                         .then(result => {   
                             if (result && result.success) {
                                 this.userId = result.userId; 
                                 this.ajaxAnswer = result.message;
-                                
-                                // Загружаем категории. Метод сам переключит pageReady в true при успехе
                                 this.loadMainSections(); 
                             } else {
-                                // Если код неверный или просрочен — возвращаем кнопку в исходное состояние
                                 this.permanentAnswer = result.message ?? "Ошибка авторизации.";
                                 this.isLoggingIn = false; 
                             }
                         })
                         .catch(error => {
-                            // Если произошел сетевой сбой — возвращаем кнопку в исходное состояние
                             this.permanentAnswer = "Не удалось связаться с сервером.";
                             this.ajaxAnswer = error.message;
                             this.isLoggingIn = false; 
