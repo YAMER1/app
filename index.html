@@ -143,7 +143,7 @@
                                 const securePayload = { 
                                     ...payload, 
                                     // Если есть секрет сессии — шлем его, иначе шлем одноразовый код из инпута/URL
-                                    secret: this.authSecret || localStorage.getItem('authSecret') || "",
+                                    secret: this.secret || localStorage.getItem('secret') || "",
                                     code: this.code || "" 
                                 };
                                 
@@ -546,8 +546,6 @@
                         this.isLoggingIn = true;
                         this.permanentAnswer = "Проверяем токен авторизации...";
 
-                        // Жестко приводим значение кода к примитивной строке String(),
-                        // чтобы разорвать любые скрытые связи с объектами JavaScript
                         const safePayload = { 
                             code: String(cleanCode) 
                         };
@@ -557,7 +555,12 @@
                                 if (result && result.success) {
                                     this.userId = result.userId; 
                                     this.ajaxAnswer = result.message;
+                                    
+                                    // ИСПРАВЛЕНО: сохраняем secret не только в память Vue, 
+                                    // но и в localStorage для последующих сессий
                                     this.secret = result.secret; 
+                                    localStorage.setItem('secret', result.secret);
+                                    
                                     this.loadMainSections(); 
                                 } else {
                                     this.permanentAnswer = result.message ?? "Ошибка авторизации.";
