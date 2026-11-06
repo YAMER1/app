@@ -750,24 +750,23 @@
                     </div>
                 </div>
             </div>
-            <transition name="fade">
-                <!-- ИСПРАВЛЕНО: добавлено left-50 для корректной работы translate-middle-x, z-index поднят до 1060, чтобы перекрывать шторку, а bottom изменен на 75px -->
-                <div v-if="ajaxAnswer" class="d-flex justify-content-center position-fixed start-50 translate-middle-x" 
-                    style="width: 260px; bottom: 75px; z-index: 1060; pointer-events: none;">
-                    
-                    <div id="ajaxAnswer" 
-                        class="fs-6 p-2 rounded text-center shadow-lg w-100 fw-semibold" 
-                        style="white-space: pre-wrap; 
-                        pointer-events: auto; 
-                        background-color: #111418; /* Глубокий темный графитовый цвет */
-                        border: 2px solid #0d6efd;   /* Фирменная голубая рамка Bootstrap */
-                        box-shadow: 0 0 15px rgba(13, 110, 253, 0.35) !important; /* Мягкое голубое свечение */
-                        color: #ffffff;">
-                        {{ ajaxAnswer }}
-                    </div>
-                </div>
-            </transition>
         </div>
     </div>
+    <transition name="fade">
+        <div v-if="ajaxAnswer" class="d-flex justify-content-center position-fixed start-50 translate-middle-x" 
+            style="width: 260px; bottom: 75px; z-index: 1060; pointer-events: none;">
+            
+            <div id="ajaxAnswer" 
+                class="fs-6 p-2 rounded text-center shadow-lg w-100 fw-semibold" 
+                style="white-space: pre-wrap; 
+                pointer-events: auto; 
+                background-color: #111418; 
+                border: 2px solid #0d6efd;   
+                box-shadow: 0 0 15px rgba(13, 110, 253, 0.35) !important; 
+                color: #ffffff;">
+                {{ ajaxAnswer }}
+            </div>
+        </div>
+    </transition>
 </body>
 </html>
