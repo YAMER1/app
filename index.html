@@ -343,7 +343,7 @@
                     toggleMarketplaceFilter() {
                         this.isFilterMarketplaceActive = !this.isFilterMarketplaceActive;
                         if(this.isFilterMarketplaceActive){
-                            this.ajaxAnswer = "Уберите лишние маркетплейсы";
+                            this.ajaxAnswer = "Выберите маркетплейсы";
                         }
                     },
                     toggleFilter() {
@@ -609,19 +609,7 @@
         <div class="d-flex mb-3 align-items-start justify-content-center">
             <div class="d-flex flex-column">
                 <div class="fs-5 cursor-pointer mb-2" @click.stop="toggleFilter" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px">
-                    <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                        <!-- 
-                        Заменяем fill="#fff" на динамический :fill.
-                        Если фильтр активен, подставится цвет #0d6efd (стандартный синий в Bootstrap 5).
-                        Если не активен — вернется белый цвет #fff.
-                        -->
-                        <path 
-                            fill-rule="evenodd" 
-                            clip-rule="evenodd" 
-                            d="M9.969 8.006v7.038L6.03 12.917v-4.91L1.084 1.043h14.003L9.97 8.006z" 
-                            :fill="isFilterActive ? '#0d6efd' : '#fff'"
-                        ></path>
-                    </svg>
+                    ⚙️
                     <span class="ms-2" :class="{ 'fw-bold text-primary': isFilterActive }">Фильтр (premium)</span>
                 </div>
 
