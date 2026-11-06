@@ -10,6 +10,9 @@
     .bg-color {
         background-color: #242630;
     }
+    .menu-color {
+        background-color: #191A22;
+    }
     input::placeholder {
         color: rgba(255, 255, 255, 0.5) !important;
         opacity: 1 !important;
@@ -586,11 +589,12 @@
     </div>
 
     <transition id="transitionAjaxAnswer" name="fade" v-if="pageReady">
-        <div class="d-flex w-100 h-100 align-items-start justify-content-center position-fixed top-0 start-0 p-3" 
+        <!-- ЗАМЕНЕНО: align-items-center идеально выравнивает плашку по вертикали, а top-0 и h-100 создают правильный каркас -->
+        <div class="d-flex w-100 h-100 align-items-center justify-content-center position-fixed top-0 start-0 p-3" 
             v-if="ajaxAnswer" 
-            style="pointer-events: none; z-index: 1050;">
+            style="pointer-events: none; z-index: 1060;">
             
-            <div id="userid" :userid="userId"></div>
+            <div id="userid" :userid="userId" v-if="false"></div>
             
             <div id="ajaxAnswer" 
                 class="fs-6 p-2 rounded text-nowrap shadow-lg" 
@@ -598,7 +602,7 @@
                 pointer-events: auto; 
                 background-color: #111418; /* Глубокий темный графитовый цвет */
                 border: 2px solid #0d6efd;   /* Фирменная голубая рамка Bootstrap */
-                box-shadow: 0 0 15px rgba(13, 110, 253, 0.25) !important; /* Мягкое голубое свечение */
+                box-shadow: 0 0 20px rgba(13, 110, 253, 0.4) !important; /* Круговое голубое свечение */
                 color: #ffffff;">
                 {{ ajaxAnswer }}
             </div>
@@ -606,14 +610,72 @@
     </transition>
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
-        <div class="d-flex mb-3 align-items-start justify-content-center">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
             <div class="d-flex flex-column">
-                <div class="fs-5 cursor-pointer mb-2" @click.stop="toggleFilter" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px">
-                    ⚙️
-                    <span class="ms-2" :class="{ 'fw-bold text-primary': isFilterActive }">Фильтр (premium)</span>
-                </div>
+                <div class="fs-5 mb-2">Категории</div>
+                <div id="selection" class="d-flex flex-column">
+                    <div 
+                        v-for="(mainSection, index) in mainSections" 
+                        :key="mainSection.ID" 
+                        class="mainSection-item cursor-pointer"
+                        @click="loadSubSections(mainSection, index)"
+                    >
+                        <div class="d-flex align-items-center justify-content-between h-100 my-1" style="width:260px;min-width:260px;max-width:260px">
+                            <!-- Чекбокс -->
+                            <input 
+                                type="checkbox" 
+                                v-model="mainSection.checked" 
+                                @change="sectionSubscription('mainSection',mainSection,'',index)"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px"
+                            >
+                            <!-- Название раздела -->
+                            <div class="d-flex w-200px">
+                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
+                                    {{ mainSection.NAME }}
+                                </span>
+                            </div>
+                            <img 
+                            class="filter-white ms-4 transition-easy-time-05 cursor-pointer pointer-events-none" 
+                            :class="{
+                                'rotate-180': mainSection.isSubSectionVisible,
+                                'opacity-0': mainSection.ID == 135
+                            }" 
+                            height="8" 
+                            width="8" 
+                            src="svg/check.svg"
+                            >
+                            <!-- Показываем подразделы -->
+                        </div>
 
-                <div v-if="isFilterActive" class="d-flex flex-column py-4 px-3 rounded" style="background-color: rgba(0, 0, 0, 0.15);width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
+                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2" style="width:0px!important">
+                            <div 
+                                v-for="subSection in mainSection.subSections" 
+                                :key="subSection.ID" 
+                                class="subSection-item d-flex align-items-center my-1"
+                                @click.stop="onSubSectionClick(subSection, mainSection)"
+                            >
+                                <input 
+                                    type="checkbox" 
+                                    v-model="subSection.checked"
+                                    @change="sectionSubscription('subSection',subSection,mainSection,index)"
+                                    @click.stop
+                                    class="cursor-pointer min-w-20px w-20px h-20px"
+                                >
+                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
+                                    {{ subSection.NAME }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex mb-3 align-items-start justify-content-center position-sticky bottom-0 z-9">
+            <div class="d-flex flex-column">
+
+                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color" style="width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
                     <div class="d-flex flex-column">
                         <div 
                             @click="$refs.topPostsCheckRef.click();" 
@@ -702,69 +764,16 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="d-flex w-100 h-100 align-items-start justify-content-center">
-            <div class="d-flex flex-column">
-                <div class="fs-5 mb-2">Подписка на категории:</div>
-                <div id="selection" class="d-flex flex-column">
-                    <div 
-                        v-for="(mainSection, index) in mainSections" 
-                        :key="mainSection.ID" 
-                        class="mainSection-item cursor-pointer"
-                        @click="loadSubSections(mainSection, index)"
-                    >
-                        <div class="d-flex align-items-center justify-content-between h-100 my-1" style="width:260px;min-width:260px;max-width:260px">
-                            <!-- Чекбокс -->
-                            <input 
-                                type="checkbox" 
-                                v-model="mainSection.checked" 
-                                @change="sectionSubscription('mainSection',mainSection,'',index)"
-                                @click.stop
-                                class="cursor-pointer min-w-20px w-20px h-20px"
-                            >
-                            <!-- Название раздела -->
-                            <div class="d-flex w-200px">
-                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
-                                    {{ mainSection.NAME }}
-                                </span>
-                            </div>
-                            <img 
-                            class="filter-white ms-4 transition-easy-time-05 cursor-pointer pointer-events-none" 
-                            :class="{
-                                'rotate-180': mainSection.isSubSectionVisible,
-                                'opacity-0': mainSection.ID == 135
-                            }" 
-                            height="8" 
-                            width="8" 
-                            src="svg/check.svg"
-                            >
-                            <!-- Показываем подразделы -->
-                        </div>
-
-                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2" style="width:0px!important">
-                            <div 
-                                v-for="subSection in mainSection.subSections" 
-                                :key="subSection.ID" 
-                                class="subSection-item d-flex align-items-center my-1"
-                                @click.stop="onSubSectionClick(subSection, mainSection)"
-                            >
-                                <input 
-                                    type="checkbox" 
-                                    v-model="subSection.checked"
-                                    @change="sectionSubscription('subSection',subSection,mainSection,index)"
-                                    @click.stop
-                                    class="cursor-pointer min-w-20px w-20px h-20px"
-                                >
-                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
-                                    {{ subSection.NAME }}
-                                </span>
-                            </div>
-                        </div>
+                <div class="fs-6 fw-bolder cursor-pointer p-3 pt-2 menu-color" :class="{ 'rounded-top': !isFilterActive }" @click.stop="toggleFilter" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px;">
+                    <div class="d-flex flex-column justify-content-center align-items-center w-60px">
+                        <div>⚙️</div>
+                        <span :class="{ 'text-primary': isFilterActive }">Фильтр</span>
                     </div>
                 </div>
             </div>
         </div>
+
+
     </div>
 </body>
 </html>
