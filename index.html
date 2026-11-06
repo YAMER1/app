@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
     [v-cloak] {
         display: none !important;
@@ -558,8 +560,7 @@
 </script>
 </head>
 
-<body id="app" class="d-flex flex-column justify-content-center bg-color text-white p-3">
-    
+<body id="app" class="d-flex flex-column align-items-center bg-color text-white p-3">
     <div v-if="!pageReady" class="d-flex flex-column justify-content-center align-items-center m-auto">
         <div class="text-center">
             <span id="permanentAnswer" class="fs-6" v-html="permanentAnswer"></span>
