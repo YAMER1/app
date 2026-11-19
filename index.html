@@ -592,7 +592,7 @@
     </div>
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
-        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-5 pb-4">
             <div class="d-flex flex-column">
                 <div class="fs-5 mb-2">Категории</div>
                 <div id="selection" class="d-flex flex-column">
@@ -654,10 +654,9 @@
             </div>
         </div>
 
-        <div class="d-flex flex-column  mb-3 align-items-center justify-content-center position-sticky bottom-0 z-9">
-            <div class="d-flex flex-column">
-
-                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color" style="width:260px;min-width:260px;max-width:260px" ref="marketplaceFilterRef">
+        <div class="d-flex flex-column mb-3 align-items-center justify-content-center position-sticky bottom-0 z-9">
+            <div class="d-flex flex-column position-relative">
+                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg" style="width:260px;min-width:260px;max-width:260px;max-height:75vh;overflow-y:auto;z-index:10;" ref="marketplaceFilterRef">
                     <div class="d-flex flex-column">
                         <div 
                             @click="$refs.topPostsCheckRef.click();" 
