@@ -592,7 +592,7 @@
     </div>
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
-        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-2">
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-5 pb-4">
             <div class="d-flex flex-column">
                 <div class="fs-5 mb-2">Категории</div>
                 <div id="selection" class="d-flex flex-column">
