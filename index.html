@@ -59,7 +59,6 @@
                         startTime: '00:00',
                         endTime: '24:00',
                         topPosts: true,
-                        seoFeatures: true,
                         voiceover: false,
                         secret: localStorage.getItem('secret') || null
                     };
@@ -370,7 +369,6 @@
                                     this.filterLoaded = true; // Фиксируем успешную загрузку
 
                                     this.topPosts = result.topPosts;
-                                    this.seoFeatures = Boolean(result.seoFeatures);
                                     this.voiceover = Boolean(result.voiceover);
                                     if (result.timeRange) {
 
@@ -680,25 +678,6 @@
                             >
                         </div>
                         
-                        <div class="my-2" style="width: 100%; height: 0px;"></div>
-                        <div 
-                            @click="$refs.seoFeaturesCheckRef.click();" 
-                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
-                        >
-                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">📋</div>
-                            <div class="ms-2" style="width: 130px;">
-                                Характеристики
-                            </div>
-                            <input 
-                                type="checkbox" 
-                                ref="seoFeaturesCheckRef"
-                                v-model="seoFeatures"
-                                @change="simpleCheckbox('seoFeatures', seoFeatures);"
-                                @click.stop
-                                class="cursor-pointer min-w-20px w-20px h-20px" 
-                                style="margin-right:-4px"
-                            >
-                        </div>
                         <div class="my-2" style="width: 100%; height: 0px;"></div>
                         <div 
                             @click="$refs.voiceoverCheckRef.click();" 
