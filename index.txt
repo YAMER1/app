@@ -13,9 +13,22 @@
     .menu-color {
         background-color: #191A22;
     }
+    input.form-control,
+    input.form-control:focus {
+        color: #ffffff !important;
+        background-color: transparent !important;
+    }
     input::placeholder {
         color: rgba(255, 255, 255, 0.5) !important;
         opacity: 1 !important;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type="number"] {
+        -moz-appearance: textfield;
     }
     .fade-enter-active,
     .fade-leave-active {
@@ -54,12 +67,16 @@
                         isFilterActive: false,
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
+                        priceFilterActive: false,
                         filterLoaded: false,
                         marketplaces: [],
                         startTime: '00:00',
                         endTime: '24:00',
+                        priceMin: null,
+                        priceMax: null,
                         topPosts: true,
                         voiceover: false,
+                        priceDropOnly: false,
                         secret: localStorage.getItem('secret') || null
                     };
                 },
@@ -370,10 +387,15 @@
 
                                     this.topPosts = result.topPosts;
                                     this.voiceover = Boolean(result.voiceover);
+                                    this.priceDropOnly = Boolean(result.priceDropOnly);
                                     if (result.timeRange) {
 
                                         this.startTime = result.timeRange.start || '00:00';
                                         this.endTime = result.timeRange.end || '24:00';
+                                    }
+                                    if (result.priceRange) {
+                                        this.priceMin = (result.priceRange.min !== null && result.priceRange.min !== '') ? Number(result.priceRange.min) : null;
+                                        this.priceMax = (result.priceRange.max !== null && result.priceRange.max !== '') ? Number(result.priceRange.max) : null;
                                     }
                                     if (Array.isArray(result.marketplaces)) {
                                         this.marketplaces = result.marketplaces;
@@ -500,6 +522,31 @@
 
                         // Просто вызываем метод, уведомление отработает внутри sendRequest
                         this.sendRequest('user/timeRange.php', data);
+                    },
+                    priceRange() {
+                        let minVal = (this.priceMin !== '' && this.priceMin !== null && !Number.isNaN(Number(this.priceMin)))
+                            ? Math.max(0, Math.floor(Number(this.priceMin)))
+                            : null;
+                        let maxVal = (this.priceMax !== '' && this.priceMax !== null && !Number.isNaN(Number(this.priceMax)))
+                            ? Math.max(0, Math.floor(Number(this.priceMax)))
+                            : null;
+
+                        if (minVal !== null && maxVal !== null && minVal > maxVal) {
+                            this.ajaxAnswer = "Минимальная цена не может быть больше максимальной";
+                            return;
+                        }
+
+                        this.priceMin = minVal;
+                        this.priceMax = maxVal;
+
+                        const data = {
+                            action: 'update',
+                            userId: this.userId,
+                            priceMin: minVal,
+                            priceMax: maxVal
+                        };
+
+                        this.sendRequest('user/priceRange.php', data);
                     },
                     verifyCode(code) {
                         const cleanCode = (code || "").trim();
@@ -697,6 +744,65 @@
                                 style="margin-right:-4px"
                             >
                         </div>
+
+                        <div class="my-2" style="width: 100%; height: 0px;"></div>
+                        <div 
+                            @click="$refs.priceDropCheckRef.click();" 
+                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
+                        >
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🟢</div>
+                            <div class="ms-2" style="width: 130px;">
+                                Снижение цены
+                            </div>
+                            <input 
+                                type="checkbox" 
+                                ref="priceDropCheckRef"
+                                v-model="priceDropOnly"
+                                @change="simpleCheckbox('priceDropOnly', priceDropOnly);"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px" 
+                                style="margin-right:-4px"
+                            >
+                        </div>
+
+                        <div class="my-2" style="width: 100%; height: 0px;"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="priceFilterActive = !priceFilterActive">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">💰</div>
+                            <span class="ms-2 text-white" style="width:125px">Цена, ₽</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="priceFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column text-white" :class="priceFilterActive ? 'mt-3' : ''" v-if="priceFilterActive">
+                            <div class="row g-3">
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">От:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="priceMin"
+                                        @blur="priceRange()"
+                                        @keydown.enter="priceRange()"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">До:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="priceMax"
+                                        @blur="priceRange()"
+                                        @keydown.enter="priceRange()"
+                                        placeholder="Макс."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+
 
                         <div class="my-2" style="width: 100%; height: 0px;"></div>
                         <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
