@@ -1048,7 +1048,7 @@
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
-            <div class="d-flex flex-column">
+            <div class="d-flex flex-column position-relative">
                 <div class="d-flex align-items-center justify-content-between mb-2 w-260px">
                     <div 
                         @click="toggleGuide()"
@@ -1067,7 +1067,11 @@
                     <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
                 </div>
 
-                <div v-if="isGuideOpen || !pdAgreed" class="menu-color rounded border border-secondary p-3 mb-3 w-260px d-flex flex-column gap-2 text-white fs-6">
+                <div 
+                    v-if="isGuideOpen || !pdAgreed" 
+                    class="menu-color rounded p-3 w-260px d-flex flex-column gap-2 text-white fs-6"
+                    :class="pdAgreed ? 'position-absolute top-100 start-0 shadow-lg filter-dropdown-panel' : 'mb-3'"
+                >
                     <div>
                         <strong>1. Подписка:</strong> отметьте галочками нужные категории и подкатегории.
                     </div>
@@ -1362,7 +1366,7 @@
         
         <div class="d-flex flex-column mb-3 align-items-center justify-content-center position-sticky bottom-0 z-9">
             <div class="d-flex flex-column position-relative">
-                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg border-bottom border-secondary w-260px filter-dropdown-panel" ref="marketplaceFilterRef">
+                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg w-260px filter-dropdown-panel" ref="marketplaceFilterRef">
                     <div v-if="bottomMenuTab === 'premium'" class="d-flex flex-column gap-2 text-white">
                         <div class="d-flex align-items-center justify-content-between pb-1 border-bottom border-secondary">
                             <span class="fs-6 fw-bold">⭐ Премиум-доступ</span>
