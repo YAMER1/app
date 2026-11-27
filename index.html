@@ -42,6 +42,13 @@
     .fade-leave-from {
       opacity: 1;
     }
+    .gear-spin {
+      display: inline-block;
+      transition: transform 0.35s ease;
+    }
+    .gear-spin-active {
+      transform: rotate(90deg);
+    }
     </style>
     <!-- ЭТА СТРОКА ДОЛЖНА БЫТЬ САМОЙ ПЕРВОЙ В HEAD -->
     <meta charset="UTF-8">
@@ -791,7 +798,11 @@
                         class="mainSection-item cursor-pointer"
                         @click="loadSubSections(mainSection, index)"
                     >
-                        <div class="d-flex align-items-center justify-content-between h-100 my-1" style="width:260px;min-width:260px;max-width:260px">
+                        <div 
+                            class="d-flex align-items-center justify-content-between h-100 my-1 py-1 px-1 rounded" 
+                            :class="{ 'menu-color': mainSection.isSubSectionVisible }"
+                            style="width:260px;min-width:260px;max-width:260px"
+                        >
                             <!-- Чекбокс -->
                             <input 
                                 type="checkbox" 
@@ -845,11 +856,11 @@
                                     <div class="d-flex align-items-center flex-shrink-0 ms-2">
                                         <span 
                                             class="position-relative d-inline-flex align-items-center justify-content-center rounded"
-                                            :class="hasActiveSubFilter(subSection.ID) ? 'bg-primary text-white' : 'opacity-50'"
+                                            :class="(hasActiveSubFilter(subSection.ID) || activeSubFilterId === String(subSection.ID)) ? 'bg-primary text-white' : 'opacity-50'"
                                             style="width: 24px; height: 24px; font-size: 13px;"
                                             :title="hasActiveSubFilter(subSection.ID) ? 'Фильтр активен' : 'Настроить фильтр'"
                                         >
-                                            ⚙️
+                                            <span class="gear-spin" :class="{ 'gear-spin-active': activeSubFilterId === String(subSection.ID) }">⚙️</span>
                                             <span 
                                                 v-if="hasActiveSubFilter(subSection.ID)" 
                                                 class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"
