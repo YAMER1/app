@@ -401,6 +401,15 @@
                             return;
                         }
 
+                        let subRatingVal = (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating)))
+                            ? Math.round(Number(draft.minRating) * 10) / 10
+                            : null;
+                        if (subRatingVal !== null) {
+                            if (subRatingVal < 0) subRatingVal = 0;
+                            if (subRatingVal > 5) subRatingVal = 5;
+                            draft.minRating = subRatingVal === 0 ? null : subRatingVal;
+                        }
+
                         const prevMasks = Array.isArray(draft.masks) ? [...draft.masks] : [""];
                         const prevStopWords = Array.isArray(draft.stopWords) ? [...draft.stopWords] : [""];
 
@@ -415,7 +424,7 @@
                                     max: (pMax !== '' && pMax !== null && !Number.isNaN(Number(pMax))) ? Math.max(0, Math.floor(Number(pMax))) : null
                                 },
                                 marketplaces: Array.isArray(draft.marketplaces) ? draft.marketplaces : [],
-                                minRating: (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating))) ? Number(draft.minRating) : null,
+                                minRating: draft.minRating,
                                 minReviews: (draft.minReviews !== '' && draft.minReviews !== null && !Number.isNaN(Number(draft.minReviews))) ? Math.max(0, Math.floor(Number(draft.minReviews))) : null
                             }
                         }).then(res => {
@@ -757,9 +766,9 @@
                             ? Math.max(0, Math.floor(Number(this.globalMinReviews)))
                             : null;
 
-                        if (ratingVal !== null && (ratingVal < 0 || ratingVal > 5)) {
-                            this.ajaxAnswer = "Рейтинг должен быть от 0 до 5";
-                            return;
+                        if (ratingVal !== null) {
+                            if (ratingVal < 0) ratingVal = 0;
+                            if (ratingVal > 5) ratingVal = 5;
                         }
 
                         if (ratingVal === 0) ratingVal = null;
@@ -1201,6 +1210,7 @@
                                                     min="0"
                                                     max="5"
                                                     v-model.number="sectionFilters[String(subSection.ID)].minRating"
+                                                    @input="if (sectionFilters[String(subSection.ID)].minRating > 5) sectionFilters[String(subSection.ID)].minRating = 5; if (sectionFilters[String(subSection.ID)].minRating < 0) sectionFilters[String(subSection.ID)].minRating = 0;"
                                                     @blur="saveSubSectionFilter(subSection.ID)"
                                                     @keydown.enter="saveSubSectionFilter(subSection.ID)"
                                                     placeholder="4.5"
@@ -1455,6 +1465,7 @@
                                         max="5"
                                         class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
                                         v-model.number="globalMinRating"
+                                        @input="if (globalMinRating > 5) globalMinRating = 5; if (globalMinRating < 0) globalMinRating = 0;"
                                         @blur="saveGlobalRatingFilter()"
                                         @keydown.enter="saveGlobalRatingFilter()"
                                         placeholder="4.5"
