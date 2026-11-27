@@ -84,12 +84,15 @@
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
                         priceFilterActive: false,
+                        ratingFilterActive: false,
                         filterLoaded: false,
                         marketplaces: [],
                         startTime: '00:00',
                         endTime: '24:00',
                         priceMin: null,
                         priceMax: null,
+                        globalMinRating: null,
+                        globalMinReviews: null,
                         topPosts: true,
                         voiceover: false,
                         priceDropOnly: false,
@@ -627,6 +630,8 @@
                                         this.priceMin = (result.priceRange.min !== null && result.priceRange.min !== '') ? Number(result.priceRange.min) : null;
                                         this.priceMax = (result.priceRange.max !== null && result.priceRange.max !== '') ? Number(result.priceRange.max) : null;
                                     }
+                                    this.globalMinRating = (result.minRating !== null && result.minRating !== undefined && result.minRating !== '') ? Number(result.minRating) : null;
+                                    this.globalMinReviews = (result.minReviews !== null && result.minReviews !== undefined && result.minReviews !== '') ? Number(result.minReviews) : null;
                                     if (Array.isArray(result.marketplaces)) {
                                         this.marketplaces = result.marketplaces;
                                     } else if (result.marketplaces && result.marketplaces.data) {
@@ -790,6 +795,36 @@
                         };
 
                         this.sendRequest('user/priceRange.php', data);
+                    },
+                    saveGlobalRatingFilter() {
+                        let ratingVal = (this.globalMinRating !== '' && this.globalMinRating !== null && !Number.isNaN(Number(this.globalMinRating)))
+                            ? Math.round(Number(this.globalMinRating) * 10) / 10
+                            : null;
+                        let reviewsVal = (this.globalMinReviews !== '' && this.globalMinReviews !== null && !Number.isNaN(Number(this.globalMinReviews)))
+                            ? Math.max(0, Math.floor(Number(this.globalMinReviews)))
+                            : null;
+
+                        if (ratingVal !== null && (ratingVal < 0 || ratingVal > 5)) {
+                            this.ajaxAnswer = "Рейтинг должен быть от 0 до 5";
+                            return;
+                        }
+
+                        if (ratingVal === 0) ratingVal = null;
+                        if (reviewsVal === 0) reviewsVal = null;
+
+                        this.globalMinRating = ratingVal;
+                        this.globalMinReviews = reviewsVal;
+
+                        this.sendRequest('user/ratingFilter.php', {
+                            userId: this.userId,
+                            minRating: ratingVal,
+                            minReviews: reviewsVal
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.globalMinRating = res.minRating ?? null;
+                                this.globalMinReviews = res.minReviews ?? null;
+                            }
+                        });
                     },
                     verifyCode(code) {
                         const cleanCode = (code || "").trim();
@@ -1085,15 +1120,15 @@
                                             v-if="hasActiveSubFilter(subSection.ID)"
                                             type="button" 
                                             @click="resetSubSectionFilter(subSection.ID)" 
-                                            class="btn btn-link btn-sm text-danger p-0 text-decoration-none"
+                                            class="btn btn-link btn-sm text-danger p-0 text-decoration-none cursor-pointer"
                                         >Сбросить</button>
                                     </div>
 
                                     <div class="btn-group btn-group-sm w-100" role="group">
-                                        <button type="button" class="btn px-1" :class="subFilterTab === 'masks' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'masks'">🔍 Маска</button>
-                                        <button type="button" class="btn px-1" :class="subFilterTab === 'stopWords' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'stopWords'">🚫 Стоп</button>
-                                        <button type="button" class="btn px-1" :class="subFilterTab === 'price' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'price'">💰 Цена</button>
-                                        <button type="button" class="btn px-1" :class="subFilterTab === 'extra' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'extra'">📦⭐</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'masks' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'masks'">🔍 Маска</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'stopWords' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'stopWords'">🚫 Стоп</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'price' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'price'">💰 Цена</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'extra' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'extra'">📦⭐</button>
                                     </div>
 
                                     <div v-if="subFilterTab === 'masks'" class="d-flex flex-column gap-1">
@@ -1118,7 +1153,7 @@
                                             <button 
                                                 type="button" 
                                                 @click="removeSubFilterWord(subSection.ID, 'masks', mIdx)" 
-                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0"
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0 cursor-pointer"
                                                 style="width: 28px; height: 28px; line-height: 1;"
                                                 title="Удалить маску"
                                             >✕</button>
@@ -1127,7 +1162,7 @@
                                             type="button" 
                                             @click="addSubFilterWord(subSection.ID, 'masks')" 
                                             :disabled="sectionFilters[String(subSection.ID)].masks.length >= 10"
-                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold cursor-pointer"
                                         >+ Маска ({{ sectionFilters[String(subSection.ID)].masks.length }}/10)</button>
                                     </div>
 
@@ -1153,7 +1188,7 @@
                                             <button 
                                                 type="button" 
                                                 @click="removeSubFilterWord(subSection.ID, 'stopWords', sIdx)" 
-                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0"
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0 cursor-pointer"
                                                 style="width: 28px; height: 28px; line-height: 1;"
                                                 title="Удалить стоп-слово"
                                             >✕</button>
@@ -1162,7 +1197,7 @@
                                             type="button" 
                                             @click="addSubFilterWord(subSection.ID, 'stopWords')" 
                                             :disabled="sectionFilters[String(subSection.ID)].stopWords.length >= 10"
-                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold cursor-pointer"
                                         >+ Стоп-слово ({{ sectionFilters[String(subSection.ID)].stopWords.length }}/10)</button>
                                     </div>
 
@@ -1296,7 +1331,7 @@
                                     <select
                                         v-model="birthDay"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">День</option>
                                         <option v-for="d in getDaysInBirthMonth()" :key="d" :value="String(d)">{{ String(d).padStart(2, '0') }}</option>
@@ -1306,7 +1341,7 @@
                                     <select
                                         v-model="birthMonth"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">Мес.</option>
                                         <option v-for="m in getBirthMonthsList()" :key="m.val" :value="m.val">{{ m.label }}</option>
@@ -1316,7 +1351,7 @@
                                     <select
                                         v-model="birthYear"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">Год</option>
                                         <option v-for="y in getBirthYearsList()" :key="y" :value="y">{{ y }}</option>
@@ -1327,7 +1362,7 @@
                                 v-if="userBirthday || birthDay || birthMonth || birthYear"
                                 type="button"
                                 @click="clearUserBirthday()"
-                                class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none"
+                                class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none cursor-pointer"
                             >Очистить дату</button>
                         </div>
                     </div>
@@ -1431,6 +1466,45 @@
                         </div>
 
 
+
+                        <div class="my-2" style="width: 100%; height: 0px;"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="ratingFilterActive = !ratingFilterActive">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🌟</div>
+                            <span class="ms-2 text-white" style="width:125px">Рейтинг и отзывы</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="ratingFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column text-white" :class="ratingFilterActive ? 'mt-3' : ''" v-if="ratingFilterActive">
+                            <div class="row g-3">
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">Рейтинг от:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="decimal"
+                                        step="0.1"
+                                        min="0"
+                                        max="5"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="globalMinRating"
+                                        @blur="saveGlobalRatingFilter()"
+                                        @keydown.enter="saveGlobalRatingFilter()"
+                                        placeholder="4.5"
+                                    />
+                                </div>
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">Отзывов от:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="globalMinReviews"
+                                        @blur="saveGlobalRatingFilter()"
+                                        @keydown.enter="saveGlobalRatingFilter()"
+                                        placeholder="10"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="my-2" style="width: 100%; height: 0px;"></div>
                         <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
