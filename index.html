@@ -76,6 +76,7 @@
                         isPremiumActive: true,
                         premUntil: '',
                         premIsLegacy: false,
+                        profileUserId: null,
                         userBirthday: '',
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
@@ -598,6 +599,7 @@
                                 if (result && result.success) {
                                     this.filterLoaded = true; // Фиксируем успешную загрузку
 
+                                    this.profileUserId = result.profileId || null;
                                     this.userBirthday = result.birthday || '';
                                     this.isPremiumActive = result.isPremiumActive !== false;
                                     this.premUntil = result.premUntil || '';
@@ -1206,7 +1208,7 @@
                     <div v-if="bottomMenuTab === 'profile'" class="d-flex flex-column gap-2 text-white">
                         <div class="d-flex align-items-center justify-content-between">
                             <span class="fs-6 fw-bold">👤 Профиль</span>
-                            <span v-if="userId" class="small text-white-50">ID {{ userId }}</span>
+                            <span v-if="profileUserId" class="small text-white-50">ID {{ profileUserId }}</span>
                         </div>
 
                         <div class="p-2 rounded bg-dark border border-secondary d-flex flex-column gap-2">
@@ -1400,9 +1402,9 @@
                         </div>
                     </div>
                 </div>
-                <div class="fs-6 fw-bolder p-3 pt-2 menu-color d-flex align-items-center justify-content-around" :class="{ 'rounded-top': !isFilterActive }" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px;">
+                <div class="fs-6 fw-bolder py-3 px-1 pt-2 menu-color d-flex align-items-center justify-content-around" :class="{ 'rounded-top': !isFilterActive }" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px;">
                     <div 
-                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
                         :class="{ 'opacity-50': !isPremiumActive }"
                         @click.stop="toggleBottomMenu('filter')"
                     >
@@ -1410,14 +1412,14 @@
                         <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'filter' }">Фильтр</span>
                     </div>
                     <div 
-                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
                         @click.stop="toggleBottomMenu('premium')"
                     >
                         <div class="w-20px h-20px">⭐</div>
                         <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'premium' }">Премиум</span>
                     </div>
                     <div 
-                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
                         @click.stop="toggleBottomMenu('profile')"
                     >
                         <div class="w-20px h-20px">👤</div>
