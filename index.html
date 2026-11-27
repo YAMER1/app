@@ -22,6 +22,7 @@
                         permanentAnswer: "Для входа отправьте /code боту и введите полученный код:",
                         ajaxAnswer: null,
                         isLoggingIn: false, // 1. Добавляем новый флаг состояния загрузки
+                        isGuideOpen: localStorage.getItem('miniapp_guide_closed') !== '1',
                         isFilterActive: false,
                         bottomMenuTab: 'filter',
                         isPremiumActive: true,
@@ -535,6 +536,10 @@
                             this.ajaxAnswer = "Выберите маркетплейсы";
                         }
                     },
+                    toggleGuide() {
+                        this.isGuideOpen = !this.isGuideOpen;
+                        localStorage.setItem('miniapp_guide_closed', this.isGuideOpen ? '0' : '1');
+                    },
                     toggleBottomMenu(tabName) {
                         if (tabName === 'filter' && !this.isPremiumActive) {
                             this.ajaxAnswer = "Пробный Премиум-доступ завершён. Продлите подписку во вкладке Премиум.";
@@ -993,6 +998,37 @@
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
             <div class="d-flex flex-column">
+                <div class="menu-color rounded border border-secondary p-2 mb-3 w-260px">
+                    <div 
+                        class="d-flex align-items-center justify-content-between cursor-pointer"
+                        @click="toggleGuide()"
+                    >
+                        <div class="d-flex align-items-center gap-2">
+                            <span>📘</span>
+                            <span class="fw-semibold fs-13px">Как пользоваться</span>
+                        </div>
+                        <img 
+                            class="filter-white transition-easy-time-05 pointer-events-none" 
+                            :class="{ 'rotate-180': isGuideOpen }" 
+                            height="8" 
+                            width="8" 
+                            src="svg/check.svg"
+                        >
+                    </div>
+
+                    <div v-if="isGuideOpen" class="d-flex flex-column gap-2 mt-2 pt-2 border-top border-secondary fs-12px text-white-50">
+                        <div>
+                            <span class="text-white fw-semibold">1. Подписка:</span> отметьте нужные категории и подкатегории галочками.
+                        </div>
+                        <div>
+                            <span class="text-white fw-semibold">2. Точный фильтр (⚙️):</span> нажмите на название подкатегории, чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки.
+                        </div>
+                        <div>
+                            <span class="text-white fw-semibold">3. Общие правила:</span> внизу в «Фильтр» настраиваются глобальная цена, рейтинг, время отправки и озвучка.
+                        </div>
+                    </div>
+                </div>
+
                 <div class="fs-5 mb-2">Категории</div>
                 <div id="selection" class="d-flex flex-column">
                     <div 

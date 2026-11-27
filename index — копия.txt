@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Mini App</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap_custom.css">
+    <script src="js/vue.js"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        function initVueApp() {
+
+            const app = Vue.createApp({
+                data() {
+                    return {
+                        pageReady: false,
+                        mainSections: [],
+                        userId: null,
+                        code: "",
+                        permanentAnswer: "Для входа отправьте /code боту и введите полученный код:",
+                        ajaxAnswer: null,
+                        isLoggingIn: false, // 1. Добавляем новый флаг состояния загрузки
+                        isFilterActive: false,
+                        bottomMenuTab: 'filter',
+                        isPremiumActive: true,
+                        premUntil: '',
+                        premIsLegacy: false,
+                        profileUserId: null,
+                        userBirthday: '',
+                        userProfession: '',
+                        birthDay: '',
+                        birthMonth: '',
+                        birthYear: '',
+                        isFilterMarketplaceActive: false,
+                        timeRangeFilterActive: false,
+                        priceFilterActive: false,
+                        ratingFilterActive: false,
+                        filterLoaded: false,
+                        marketplaces: [],
+                        startTime: '00:00',
+                        endTime: '24:00',
+                        priceMin: null,
+                        priceMax: null,
+                        globalMinRating: null,
+                        globalMinReviews: null,
+                        topPosts: true,
+                        voiceover: false,
+                        priceDropOnly: false,
+                        activeSubFilterId: null,
+                        subFilterTab: 'masks',
+                        sectionFilters: {},
+                        sectionParents: {},
+                        secret: localStorage.getItem('secret') || null
+                    };
+                },
+                // ДОБАВЛЯЕМ СЕКЦИЮ WATCH
+                watch: {
+                    // Название функции должно СТРОГО совпадать с именем переменной из data()
+                    ajaxAnswer(newValue) {
+                        // Если в переменную записали текст (newValue не пустой)
+                        if (newValue) {
+                            // Очищаем предыдущий таймер, если пользователь кликнул быстро несколько раз
+                            if (this.ajaxTimer) {
+                                clearTimeout(this.ajaxTimer);
+                            }
+
+                            // Запускаем автоматическое скрытие через 3.5 секунды (3500 мс)
+                            this.ajaxTimer = setTimeout(() => {
+                                this.ajaxAnswer = null;
+                            }, 3500);
+                        }
+                    }
+                },
+                mounted() {
+                    document.addEventListener('click', this.handleClickOutside);
+
+                    // Вытягиваем код из GET-параметра URL-строки
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlCode = urlParams.get('code');
+                    
+                    if (urlCode) {
+                        this.code = urlCode;
+                        this.verifyCode(urlCode);
+                    }
+                },
+                beforeUnmount() { // Если у вас Vue 2, замените на destroyed()
+                    // Обязательно убираем слежку, когда уходим со страницы, чтобы не тратить память
+                    document.removeEventListener('click', this.handleClickOutside);
+                },
+                methods: {
+                    async sendRequest(url, payload) {
+                        // 1. Безопасно очищаем входящий URL от случайных переносов строк и пробелов
+                        let safeUrl = (url || "").replace(/[\r\n\s\t]/g, '');
+
+                        // Динамически выстраиваем приоритет доменов на основе текущего хоста
+                        const isAppDomain = window.location.hostname === 'app.megasborka.ru';
+                        
+                        const domains = isAppDomain 
+                            ? ['https://app.megasborka.ru', 'https://megasborka.ru'] 
+                            : ['https://megasborka.ru', 'https://app.megasborka.ru'];
+                        
+                        // Очищаем входящий путь от пробелов и переносов строк
+                        let cleanPath = (url || "").replace(/[\r\n\s\t]/g, '');
+                        
+                        if (!cleanPath.startsWith('http://') && !cleanPath.startsWith('https://')) {
+                            cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+                            if (!cleanPath.startsWith('appData/')) {
+                                cleanPath = `appData/${cleanPath}`;
+                            }
+                        } else {
+                            try {
+                                const urlObj = new URL(cleanPath);
+                                cleanPath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+                            } catch (e) {
+                                // Оставляем как есть
+                            }
+                        }
+
+                        cleanPath = cleanPath.replace(/[\r\n\s\t]/g, '');
+
+                        const fetchWithTimeout = async (domain) => {
+                            // Защита от сбоя: если домен не определился, прерываем операцию
+                            if (!domain || domain.includes('undefined')) {
+                                throw new Error("Критическая ошибка: Домен не определен (undefined).");
+                            }
+
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 7000); 
+
+                            try {
+                                const fullUrl = `${domain}/${cleanPath}`;
+                                
+                                // Финальная проверка: если в URL попал мусор вроде undefined или null, блокируем вызов fetch
+                                if (fullUrl.includes('undefined') || fullUrl.includes('null')) {
+                                    throw new Error(`Невалидный URL запроса: ${fullUrl}`);
+                                }
+
+                                console.log(`[Fetch API] Отправка на: ${fullUrl}`);
+                                
+                                const securePayload = { 
+                                    ...payload, 
+                                    // Если есть секрет сессии — шлем его, иначе шлем одноразовый код из инпута/URL
+                                    secret: this.secret || localStorage.getItem('secret') || "",
+                                    code: this.code || "" 
+                                };
+                                
+                                const response = await fetch(fullUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        "Content-Type": "application/json"
+                                    },
+                                    body: JSON.stringify(securePayload)
+                                });
+
+                                clearTimeout(timeoutId);
+
+                                if (!response.ok) {
+                                    throw new Error(`HTTP Error: ${response.status}`);
+                                }
+
+                                const resData = await response.json();
+                                
+                                // ЦЕНТРАЛИЗОВАННЫЙ ВЫВОД: Если сервер вернул текстовое сообщение, показываем его
+                                if (resData && resData.message) {
+                                    this.ajaxAnswer = resData.message;
+                                }
+                                
+                                return resData;
+                            } catch (err) {
+                                clearTimeout(timeoutId);
+                                throw err;
+                            }
+                        };
+
+                        // 2. Последовательный перебор доменов
+                        let lastError = null;
+                        for (let i = 0; i < domains.length; i++) {
+                            const currentDomain = domains[i];
+                            try {
+                                return await fetchWithTimeout(currentDomain);
+                            } catch (err) {
+                                lastError = err;
+                                console.warn(`[Fallback] Домен ${currentDomain} недоступен: ${err.message}`);
+                            }
+                        }
+
+                        // Вместо падения браузера выводим развернутую ошибку пользователю
+                        throw new Error(lastError?.message || "Не удалось связаться с сервером.");
+                    },
+                    fetchSection(filter, select) {
+                        const userId = this.userId;
+                        
+                        // Передаем объект с параметрами напрямую в наш хелпер.
+                        // Метод sendRequest сам сделает JSON.stringify и вернет распарсенный res.json()
+                        return this.sendRequest("section/sections.php", { userId, filter, select });
+                    },
+
+                    loadMainSections() {
+                        console.log("Загрузка разделов");
+                        this.permanentAnswer = "Загружаем категории товаров...";
+
+                        this.fetchSection({ DEPTH_LEVEL: 1 }, ["ID", "NAME"])
+                            .then(response => {
+                                if (Array.isArray(response)) {
+                                    console.log("Разделы успешно получены, форматируем структуру Vue 3...");
+                                    
+                                    this.mainSections = response.map(section => {
+                                        return { ...section, subSections: [], isSubSectionVisible: false };
+                                    });
+                                    
+                                    this.pageReady = true;
+                                    this.permanentAnswer = null;
+                                    this.isLoggingIn = false; // Сбрасываем флаг при полном успехе
+                                } else {
+                                    this.permanentAnswer = `💥 Ошибка формата данных!\nСервер вернул некорректный ответ вместо списка категорий.\n\nДетали: ${JSON.stringify(response.message)}`;
+                                    console.error("Ошибка: сервер вернул некорректный формат разделов", response);
+                                    this.isLoggingIn = false; // Возвращаем кнопку, если Битрикс отдал странный JSON
+                                }
+                            })
+                            .catch(err => {
+                                this.permanentAnswer = `💥 Критический сбой при загрузке каталога!\nСмените страну на Казахстан, перезагрузите страницу!\n\nДетали сетевой ошибки: ${err.message || JSON.stringify(err)}`;
+                                console.error("Ошибка загрузки основных разделов:", err);
+                                this.isLoggingIn = false; // Возвращаем кнопку при ошибке сети на этапе категорий
+                            });
+                    },
+
+                    loadSubSections(mainSection, index) {
+                        this.mainSections.forEach((section, i) => {
+                            if (i !== index) {
+                                section.isSubSectionVisible = false;
+                            }
+                        });
+
+                        if (!this.mainSections[index].subSections || this.mainSections[index].subSections.length === 0) {
+                            return this.fetchSection(
+                                { DEPTH_LEVEL: 2, IBLOCK_SECTION_ID: mainSection.ID },
+                                ["ID", "NAME"]
+                            ).then(response => {
+                                console.log('Подразделы для ID:', mainSection.ID, response);
+                                const subData = Array.isArray(response) ? response : [];
+                                
+                                this.mainSections[index] = {
+                                    ...this.mainSections[index],
+                                    subSections: subData,
+                                    isSubSectionVisible: true
+                                };
+                                
+                                this.mainSections.splice(index, 1, this.mainSections[index]);
+                                return subData; 
+                            });
+                        } else {
+                            this.mainSections[index].isSubSectionVisible = !this.mainSections[index].isSubSectionVisible;
+                            this.mainSections.splice(index, 1, this.mainSections[index]);
+                            return Promise.resolve(this.mainSections[index].subSections);
+                        }
+                    },
+                    
+                    ensureSubFilterDraft(subId) {
+                        const key = String(subId);
+                        if (!this.sectionFilters[key] || typeof this.sectionFilters[key] !== 'object') {
+                            this.sectionFilters[key] = {
+                                masks: [""],
+                                stopWords: [""],
+                                priceRange: { min: null, max: null },
+                                marketplaces: [],
+                                minRating: null,
+                                minReviews: null
+                            };
+                            return;
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].masks) || this.sectionFilters[key].masks.length === 0) {
+                            this.sectionFilters[key].masks = [""];
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].stopWords) || this.sectionFilters[key].stopWords.length === 0) {
+                            this.sectionFilters[key].stopWords = [""];
+                        }
+                        if (!this.sectionFilters[key].priceRange || typeof this.sectionFilters[key].priceRange !== 'object') {
+                            this.sectionFilters[key].priceRange = { min: null, max: null };
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].marketplaces)) {
+                            this.sectionFilters[key].marketplaces = [];
+                        }
+                        if (this.sectionFilters[key].minRating === undefined) {
+                            this.sectionFilters[key].minRating = null;
+                        }
+                        if (this.sectionFilters[key].minReviews === undefined) {
+                            this.sectionFilters[key].minReviews = null;
+                        }
+                    },
+                    hasActiveSubFilter(subId) {
+                        const f = this.sectionFilters[String(subId)];
+                        if (!f || typeof f !== 'object') return false;
+                        const hasMasks = Array.isArray(f.masks) && f.masks.some(m => String(m).replace(/%/g, '').trim() !== '');
+                        const hasStop = Array.isArray(f.stopWords) && f.stopWords.some(m => String(m).replace(/%/g, '').trim() !== '');
+                        const hasPrice = f.priceRange && ((f.priceRange.min !== null && f.priceRange.min !== '') || (f.priceRange.max !== null && f.priceRange.max !== ''));
+                        const hasMarkets = Array.isArray(f.marketplaces) && f.marketplaces.length > 0;
+                        const hasRating = f.minRating !== null && f.minRating !== '' && Number(f.minRating) > 0;
+                        const hasReviews = f.minReviews !== null && f.minReviews !== '' && Number(f.minReviews) > 0;
+                        return hasMasks || hasStop || hasPrice || hasMarkets || hasRating || hasReviews;
+                    },
+                    getActiveSubFiltersCount() {
+                        return Object.keys(this.sectionFilters).filter(id => this.hasActiveSubFilter(id)).length;
+                    },
+                    hasActiveMainFilter(mainSection) {
+                        if (!this.isPremiumActive || !mainSection) return false;
+                        const mainId = String(mainSection.ID);
+
+                        if (Array.isArray(mainSection.subSections) && mainSection.subSections.length > 0) {
+                            if (mainSection.subSections.some(sub => this.hasActiveSubFilter(sub.ID))) {
+                                return true;
+                            }
+                        }
+
+                        return Object.keys(this.sectionFilters).some(subId => {
+                            return String(this.sectionParents[subId] ?? '') === mainId && this.hasActiveSubFilter(subId);
+                        });
+                    },
+                    onSubSectionClick(subSection, mainSection) {
+                        if (!this.isPremiumActive) {
+                            this.ajaxAnswer = "Срок действия Премиум-доступа истёк. Доступна только подписка на разделы.";
+                            this.bottomMenuTab = 'premium';
+                            this.isFilterActive = true;
+                            return;
+                        }
+                        const subId = String(subSection.ID);
+                        if (this.activeSubFilterId === subId) {
+                            this.activeSubFilterId = null;
+                            return;
+                        }
+                        if (!this.hasActiveSubFilter(subId) && this.getActiveSubFiltersCount() >= 10) {
+                            this.ajaxAnswer = "Лимит: максимум 10 подразделов с фильтрами";
+                            return;
+                        }
+                        if (mainSection && mainSection.ID) {
+                            this.sectionParents[subId] = String(mainSection.ID);
+                        }
+                        this.ensureSubFilterDraft(subId);
+                        this.subFilterTab = 'masks';
+                        this.activeSubFilterId = subId;
+
+                        if (!this.filterLoaded) {
+                            this.loadAllFilterData();
+                        }
+                    },
+                    addSubFilterWord(subId, field) {
+                        const key = String(subId);
+                        this.ensureSubFilterDraft(key);
+                        if (this.sectionFilters[key][field].length >= 10) {
+                            this.ajaxAnswer = field === 'masks'
+                                ? "Лимит: максимум 10 масок на подраздел"
+                                : "Лимит: максимум 10 стоп-слов на подраздел";
+                            return;
+                        }
+                        this.sectionFilters[key][field].push("");
+                    },
+                    removeSubFilterWord(subId, field, idx) {
+                        const key = String(subId);
+                        if (!this.sectionFilters[key] || !Array.isArray(this.sectionFilters[key][field])) return;
+                        this.sectionFilters[key][field].splice(idx, 1);
+                        if (this.sectionFilters[key][field].length === 0) {
+                            this.sectionFilters[key][field].push("");
+                        }
+                        this.saveSubSectionFilter(key);
+                    },
+                    toggleSubMarketplace(subId, marketId, isChecked) {
+                        const key = String(subId);
+                        this.ensureSubFilterDraft(key);
+                        const mId = Number(marketId);
+                        const current = this.sectionFilters[key].marketplaces;
+                        if (isChecked && !current.includes(mId)) {
+                            current.push(mId);
+                        } else if (!isChecked) {
+                            this.sectionFilters[key].marketplaces = current.filter(id => id !== mId);
+                        }
+                        this.saveSubSectionFilter(key);
+                    },
+                    resetSubSectionFilter(subId) {
+                        const key = String(subId);
+                        delete this.sectionFilters[key];
+                        this.activeSubFilterId = null;
+                        this.sendRequest('user/sectionFilter.php', {
+                            userId: this.userId,
+                            sectionId: key,
+                            filter: {}
+                        }).then(res => {
+                            if (res && res.sectionFilters) {
+                                this.sectionFilters = res.sectionFilters;
+                            }
+                        });
+                    },
+                    saveSubSectionFilter(subId) {
+                        const key = String(subId);
+                        const draft = this.sectionFilters[key] || {};
+                        const pMin = draft.priceRange?.min;
+                        const pMax = draft.priceRange?.max;
+
+                        if (pMin !== null && pMin !== '' && pMax !== null && pMax !== '' && Number(pMin) > Number(pMax)) {
+                            this.ajaxAnswer = "Минимальная цена не может быть больше максимальной";
+                            return;
+                        }
+
+                        let subRatingVal = (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating)))
+                            ? Math.round(Number(draft.minRating) * 10) / 10
+                            : null;
+                        if (subRatingVal !== null) {
+                            if (subRatingVal < 0) subRatingVal = 0;
+                            if (subRatingVal > 5) subRatingVal = 5;
+                            draft.minRating = subRatingVal === 0 ? null : subRatingVal;
+                        }
+
+                        const prevMasks = Array.isArray(draft.masks) ? [...draft.masks] : [""];
+                        const prevStopWords = Array.isArray(draft.stopWords) ? [...draft.stopWords] : [""];
+
+                        this.sendRequest('user/sectionFilter.php', {
+                            userId: this.userId,
+                            sectionId: key,
+                            filter: {
+                                masks: prevMasks,
+                                stopWords: prevStopWords,
+                                priceRange: {
+                                    min: (pMin !== '' && pMin !== null && !Number.isNaN(Number(pMin))) ? Math.max(0, Math.floor(Number(pMin))) : null,
+                                    max: (pMax !== '' && pMax !== null && !Number.isNaN(Number(pMax))) ? Math.max(0, Math.floor(Number(pMax))) : null
+                                },
+                                marketplaces: Array.isArray(draft.marketplaces) ? draft.marketplaces : [],
+                                minRating: draft.minRating,
+                                minReviews: (draft.minReviews !== '' && draft.minReviews !== null && !Number.isNaN(Number(draft.minReviews))) ? Math.max(0, Math.floor(Number(draft.minReviews))) : null
+                            }
+                        }).then(res => {
+                            if (res && res.sectionFilters) {
+                                this.sectionFilters = res.sectionFilters;
+                                if (this.activeSubFilterId === key) {
+                                    this.ensureSubFilterDraft(key);
+                                    const emptyMasksCount = prevMasks.filter(m => String(m).replace(/%/g, '').trim() === '').length;
+                                    const serverMasks = Array.isArray(this.sectionFilters[key].masks)
+                                        ? this.sectionFilters[key].masks.filter(m => String(m).replace(/%/g, '').trim() !== '')
+                                        : [];
+                                    this.sectionFilters[key].masks = [
+                                        ...serverMasks,
+                                        ...Array(Math.max(serverMasks.length === 0 ? 1 : 0, emptyMasksCount)).fill("")
+                                    ].slice(0, 10);
+
+                                    const emptyStopCount = prevStopWords.filter(m => String(m).replace(/%/g, '').trim() === '').length;
+                                    const serverStop = Array.isArray(this.sectionFilters[key].stopWords)
+                                        ? this.sectionFilters[key].stopWords.filter(m => String(m).replace(/%/g, '').trim() !== '')
+                                        : [];
+                                    this.sectionFilters[key].stopWords = [
+                                        ...serverStop,
+                                        ...Array(Math.max(serverStop.length === 0 ? 1 : 0, emptyStopCount)).fill("")
+                                    ].slice(0, 10);
+                                }
+                            }
+                        });
+                    },
+                    async sectionSubscription(sectionType, section, parentSection = null, index) {
+                        const initialData = {
+                            userId: this.userId,
+                            sectionType: sectionType,
+                            sectionId: section.ID,
+                            isChecked: section.checked
+                        };
+                        // Вызываем напрямую sendRequest, уведомление покажется автоматически
+                        await this.sendRequest("section/subscription.php", initialData).catch(() => {});
+
+                        if (sectionType === "mainSection") {
+                            if (!section.subSections || !section.subSections.length) {
+                                console.log("Активируем сначала дочерние разделы, если они не открыты перед нажатием чекбокса, ID раздела " + index);
+                                await this.loadSubSections(section, index);
+                                section.subSections = this.mainSections[index].subSections;
+                            }
+
+                            if (section.subSections && section.subSections.length) {
+                                section.subSections.forEach(sub => {
+                                    sub.checked = section.checked;
+                                });
+
+                                const subsectionIdString = section.subSections.map(sub => sub.ID).join(',');
+                                const childrenData = {
+                                    userId: this.userId,
+                                    sectionType: "subSection",
+                                    sectionId: subsectionIdString,
+                                    isChecked: section.checked
+                                };
+
+                                console.log("Отмечаем подпись или отпись на дочерние разделы");
+                                await this.sendRequest("section/subscription.php", childrenData).catch(() => {});
+                            }
+                        } else {
+                            if (section.checked === true) {
+                                if (parentSection && parentSection.checked === false) { 
+                                    const parentData = {
+                                        userId: this.userId,
+                                        sectionType: "mainSection",
+                                        sectionId: parentSection.ID,
+                                        isChecked: true
+                                    };
+
+                                    await this.sendRequest("section/subscription.php", parentData).catch(() => {});
+                                    parentSection.checked = true; 
+                                }
+                            }
+                        }
+                    },
+                    marketSubscription(mainMarket, id, isChecked) {
+                        const data = {
+                            userId: this.userId,
+                            mainMarket: mainMarket ? 1 : 0, 
+                            id: id,
+                            isChecked: isChecked 
+                        };
+
+                        // Вызываем универсальный хелпер вместо сырого fetch
+                        this.sendRequest('marketplaces/subscription.php', data)
+                            .then(resData => {
+                                // Вся ваша логика разбора ответа полностью сохранена:
+                                if (Array.isArray(resData)) {
+                                    this.marketplaces = resData;
+                                }
+                            })
+                            .catch(error => {
+                                console.error("Ошибка при получении маркетплейсов:", error);
+                                this.marketplaces = []; // Сбрасываем при ошибке, как в оригинале
+                            });
+                    },
+                    toggleTimeRangeFilter() {
+                        this.timeRangeFilterActive = !this.timeRangeFilterActive;
+                        if(this.timeRangeFilterActive){
+                            this.ajaxAnswer = "Задайте период публикации";
+                        }
+                    },
+                    toggleMarketplaceFilter() {
+                        this.isFilterMarketplaceActive = !this.isFilterMarketplaceActive;
+                        if(this.isFilterMarketplaceActive){
+                            this.ajaxAnswer = "Выберите маркетплейсы";
+                        }
+                    },
+                    toggleBottomMenu(tabName) {
+                        if (tabName === 'filter' && !this.isPremiumActive) {
+                            this.ajaxAnswer = "Пробный Премиум-доступ завершён. Продлите подписку во вкладке Премиум.";
+                            this.bottomMenuTab = 'premium';
+                            this.isFilterActive = true;
+                            return;
+                        }
+
+                        if (this.isFilterActive && this.bottomMenuTab === tabName) {
+                            this.isFilterActive = false;
+                            return;
+                        }
+
+                        this.bottomMenuTab = tabName;
+                        this.isFilterActive = true;
+
+                        if (!this.filterLoaded) {
+                            this.loadAllFilterData();
+                        }
+                    },
+                    loadAllFilterData() {
+                        const data = {
+                            userId: this.userId,
+                            allProducts: true
+                        };
+
+                        this.sendRequest('premium/getFilterData.php', data)
+                            .then(result => {
+                                if (result && result.success) {
+                                    this.filterLoaded = true; // Фиксируем успешную загрузку
+
+                                    this.profileUserId = result.profileId || null;
+                                    this.userBirthday = result.birthday || '';
+                                    this.userProfession = result.profession || '';
+                                    this.syncBirthdayPartsFromIso(this.userBirthday);
+                                    this.isPremiumActive = result.isPremiumActive !== false;
+                                    this.premUntil = result.premUntil || '';
+                                    this.premIsLegacy = Boolean(result.premIsLegacy);
+                                    if (!this.isPremiumActive) {
+                                        this.activeSubFilterId = null;
+                                        if (this.bottomMenuTab === 'filter') {
+                                            this.bottomMenuTab = 'premium';
+                                        }
+                                    }
+
+                                    this.topPosts = result.topPosts;
+                                    this.voiceover = Boolean(result.voiceover);
+                                    this.priceDropOnly = Boolean(result.priceDropOnly);
+                                    if (result.timeRange) {
+
+                                        this.startTime = result.timeRange.start || '00:00';
+                                        this.endTime = result.timeRange.end || '24:00';
+                                    }
+                                    if (result.priceRange) {
+                                        this.priceMin = (result.priceRange.min !== null && result.priceRange.min !== '') ? Number(result.priceRange.min) : null;
+                                        this.priceMax = (result.priceRange.max !== null && result.priceRange.max !== '') ? Number(result.priceRange.max) : null;
+                                    }
+                                    this.globalMinRating = (result.minRating !== null && result.minRating !== undefined && result.minRating !== '') ? Number(result.minRating) : null;
+                                    this.globalMinReviews = (result.minReviews !== null && result.minReviews !== undefined && result.minReviews !== '') ? Number(result.minReviews) : null;
+                                    if (Array.isArray(result.marketplaces)) {
+                                        this.marketplaces = result.marketplaces;
+                                    } else if (result.marketplaces && result.marketplaces.data) {
+                                        this.marketplaces = result.marketplaces.data;
+                                    }
+                                    if (result.sectionFilters && typeof result.sectionFilters === 'object' && !Array.isArray(result.sectionFilters)) {
+                                        this.sectionFilters = result.sectionFilters;
+                                    } else {
+                                        this.sectionFilters = {};
+                                    }
+                                    if (this.activeSubFilterId) {
+                                        this.ensureSubFilterDraft(this.activeSubFilterId);
+                                    }
+                                    if (result.sectionParents && typeof result.sectionParents === 'object' && !Array.isArray(result.sectionParents)) {
+                                        this.sectionParents = result.sectionParents;
+                                    } else {
+                                        this.sectionParents = {};
+                                    }
+                                } else {
+                                    this.ajaxAnswer = "Не удалось загрузить настройки фильтра.";
+                                }
+                            }).catch(error => {
+                                console.error("Критическая ошибка загрузки единого фильтра:", error);
+                                this.ajaxAnswer = "Ошибка сети при загрузке фильтра.";
+                                this.marketplaces = [];
+                                this.startTime = '00:00';
+                                this.endTime = '24:00';
+                            });
+                    },
+                    handleClickOutside(event) {
+                        // === ПРОВЕРКА ДЛЯ ГЛАВНОГО ФИЛЬТРА ===
+                        if (this.isFilterActive) {
+                            const filterBtn = this.$refs.filterBtnRef;
+                            const marketplaceContainer = this.$refs.marketplaceFilterRef;
+
+                            // Фильтр закрывается, ЕСЛИ кликнули вне кнопки фильтра 
+                            // И одновременно вне открывшегося контейнера маркетплейсов 
+                            // (чтобы клик внутри маркетплейсов случайно не захлопнул весь фильтр)
+                            const clickedOutsideBtn = filterBtn && !filterBtn.contains(event.target);
+                            const clickedOutsideMarket = !marketplaceContainer || !marketplaceContainer.contains(event.target);
+
+                            if (clickedOutsideBtn && clickedOutsideMarket) {
+                                this.isFilterActive = false;
+                                this.isFilterMarketplaceActive = false; // При закрытии фильтра маркетплейсы тоже прячем
+                            }
+                        }
+
+                        // === ПРОВЕРКА ДЛЯ МАРКЕТПЛЕЙСОВ ===
+                        if (this.isFilterMarketplaceActive) {
+                            const marketplaceContainer = this.$refs.marketplaceFilterRef;
+                            
+                            // Если кликнули вне контейнера маркетплейсов — закрываем только маркетплейсы
+                            if (marketplaceContainer && !marketplaceContainer.contains(event.target)) {
+                                this.isFilterMarketplaceActive = false;
+                            }
+                        }
+                    },
+
+                    applyMask(event, field) {
+                        // 1. Оставляем только чистые цифры
+                        let val = event.target.value.replace(/\D/g, '');
+                        
+                        // 2. Жестко режем строку до 4 цифр (ЧЧММ)
+                        if (val.length > 4) {
+                        val = val.slice(0, 4);
+                        }
+
+                        // --- ВАЛИДАЦИЯ ЧАСОВ (Символы 1 и 2) ---
+                        // Первая цифра не может быть больше 2
+                        if (val.length >= 1 && Number(val[0]) > 2) {
+                        val = '2' + val.slice(1);
+                        }
+                        // Две цифры часов не могут быть больше 24
+                        if (val.length >= 2) {
+                        const hours = Number(val.slice(0, 2));
+                        if (hours > 24) {
+                            val = '24' + val.slice(2);
+                        }
+                        }
+
+                        // --- ВАЛИДАЦИЯ МИНУТ (Символы 3 и 4) ---
+                        if (val.length >= 3) {
+                        const hours = Number(val.slice(0, 2));
+                        
+                        if (hours === 24) {
+                            // Если часов 24, третья цифра (минуты) может быть только 0
+                            val = val.slice(0, 2) + '0' + val.slice(3);
+                        } else if (Number(val[2]) > 5) {
+                            // Первая цифра минут не может быть больше 5 (например, вместо 6 ставим 5)
+                            val = val.slice(0, 2) + '5' + val.slice(3);
+                        }
+                        }
+
+                        if (val.length === 4) {
+                        const hours = Number(val.slice(0, 2));
+                        // Если часов 24, то четвертая цифра тоже строго 0
+                        if (hours === 24) {
+                            val = '2400';
+                        }
+                        }
+
+                        // --- СБОРКА ИТОГОВОЙ СТРОКИ С ДВОЕТОЧИЕМ ---
+                        if (val.length >= 3) {
+                        val = val.slice(0, 2) + ':' + val.slice(2);
+                        }
+
+                        // Из-за особенностей реактивности Vue, если пользователь ввел лишний символ, 
+                        // нам нужно принудительно обновить значение в самом HTML-элементе инпута, 
+                        // иначе браузер покажет лишнюю цифру до следующего рендера.
+                        this[field] = val;
+                        event.target.value = val; 
+                    },
+
+                    validateField(field) {
+                        // Если поле недописано, сбрасываем на дефолты при выходе
+                        if (!this[field] || this[field].length < 5) {
+                        this[field] = field === 'startTime' ? '00:00' : '24:00';
+                        }
+                        
+                        // Проверка интервала
+                        if (this.startTime >= this.endTime) {
+                        this.endTime = '24:00'; 
+                        if (this.startTime >= '24:00') {
+                            this.startTime = '23:45';
+                        }
+                        }
+                    },
+
+                    timeRange() {
+                        const data = {
+                            action: 'update',
+                            userId: this.userId,
+                            startTime: this.startTime,
+                            endTime: this.endTime
+                        };
+
+                        // Просто вызываем метод, уведомление отработает внутри sendRequest
+                        this.sendRequest('user/timeRange.php', data);
+                    },
+                    priceRange() {
+                        let minVal = (this.priceMin !== '' && this.priceMin !== null && !Number.isNaN(Number(this.priceMin)))
+                            ? Math.max(0, Math.floor(Number(this.priceMin)))
+                            : null;
+                        let maxVal = (this.priceMax !== '' && this.priceMax !== null && !Number.isNaN(Number(this.priceMax)))
+                            ? Math.max(0, Math.floor(Number(this.priceMax)))
+                            : null;
+
+                        if (minVal !== null && maxVal !== null && minVal > maxVal) {
+                            this.ajaxAnswer = "Минимальная цена не может быть больше максимальной";
+                            return;
+                        }
+
+                        this.priceMin = minVal;
+                        this.priceMax = maxVal;
+
+                        const data = {
+                            action: 'update',
+                            userId: this.userId,
+                            priceMin: minVal,
+                            priceMax: maxVal
+                        };
+
+                        this.sendRequest('user/priceRange.php', data);
+                    },
+                    saveGlobalRatingFilter() {
+                        let ratingVal = (this.globalMinRating !== '' && this.globalMinRating !== null && !Number.isNaN(Number(this.globalMinRating)))
+                            ? Math.round(Number(this.globalMinRating) * 10) / 10
+                            : null;
+                        let reviewsVal = (this.globalMinReviews !== '' && this.globalMinReviews !== null && !Number.isNaN(Number(this.globalMinReviews)))
+                            ? Math.max(0, Math.floor(Number(this.globalMinReviews)))
+                            : null;
+
+                        if (ratingVal !== null) {
+                            if (ratingVal < 0) ratingVal = 0;
+                            if (ratingVal > 5) ratingVal = 5;
+                        }
+
+                        if (ratingVal === 0) ratingVal = null;
+                        if (reviewsVal === 0) reviewsVal = null;
+
+                        this.globalMinRating = ratingVal;
+                        this.globalMinReviews = reviewsVal;
+
+                        this.sendRequest('user/ratingFilter.php', {
+                            userId: this.userId,
+                            minRating: ratingVal,
+                            minReviews: reviewsVal
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.globalMinRating = res.minRating ?? null;
+                                this.globalMinReviews = res.minReviews ?? null;
+                            }
+                        });
+                    },
+                    verifyCode(code) {
+                        const cleanCode = (code || "").trim();
+
+                        if (!cleanCode) {
+                            this.permanentAnswer = "Код не может быть пустым.";
+                            return; 
+                        }
+                        if (this.isLoggingIn) return;
+
+                        this.isLoggingIn = true;
+                        this.permanentAnswer = "Проверяем токен авторизации...";
+
+                        const safePayload = { 
+                            code: String(cleanCode) 
+                        };
+
+                        this.sendRequest('user/verifyCode.php', safePayload)
+                            .then(result => {   
+                                if (result && result.success) {
+                                    this.userId = result.userId; 
+                                    this.ajaxAnswer = result.message;
+                                    
+                                    // ИСПРАВЛЕНО: сохраняем secret не только в память Vue, 
+                                    // но и в localStorage для последующих сессий
+                                    this.secret = result.secret; 
+                                    localStorage.setItem('secret', result.secret);
+                                    
+                                    this.loadMainSections(); 
+                                } else {
+                                    this.permanentAnswer = result.message ?? "Ошибка авторизации.";
+                                    this.isLoggingIn = false; 
+                                }
+                            })
+                            .catch(error => {
+                                this.permanentAnswer = `💥 Ошибка соединения с сервером!\n\nДетали: ${error.message}`;
+                                this.ajaxAnswer = error.message;
+                                this.isLoggingIn = false; 
+                            });
+                    },
+                    getUserAgeLabel() {
+                        if (!this.userBirthday) return '';
+                        const parts = String(this.userBirthday).split('-');
+                        if (parts.length !== 3) return '';
+                        const year = Number(parts[0]);
+                        const month = Number(parts[1]) - 1;
+                        const day = Number(parts[2]);
+                        const birthDate = new Date(year, month, day);
+                        if (Number.isNaN(birthDate.getTime())) return '';
+
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const mDiff = today.getMonth() - birthDate.getMonth();
+                        if (mDiff < 0 || (mDiff === 0 && today.getDate() < birthDate.getDate())) {
+                            age--;
+                        }
+                        if (age < 0 || age > 120) return '';
+                        return `${age} лет`;
+                    },
+                    syncBirthdayPartsFromIso(isoDate) {
+                        const parts = String(isoDate || '').split('-');
+                        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                            this.birthYear = String(Number(parts[0]));
+                            this.birthMonth = String(Number(parts[1]));
+                            this.birthDay = String(Number(parts[2]));
+                        } else {
+                            this.birthYear = '';
+                            this.birthMonth = '';
+                            this.birthDay = '';
+                        }
+                    },
+                    getBirthMonthsList() {
+                        return [
+                            { val: '1', label: 'Янв' },
+                            { val: '2', label: 'Фев' },
+                            { val: '3', label: 'Мар' },
+                            { val: '4', label: 'Апр' },
+                            { val: '5', label: 'Май' },
+                            { val: '6', label: 'Июн' },
+                            { val: '7', label: 'Июл' },
+                            { val: '8', label: 'Авг' },
+                            { val: '9', label: 'Сен' },
+                            { val: '10', label: 'Окт' },
+                            { val: '11', label: 'Ноя' },
+                            { val: '12', label: 'Дек' }
+                        ];
+                    },
+                    getBirthYearsList() {
+                        const currentYear = new Date().getFullYear();
+                        const years = [];
+                        for (let y = currentYear; y >= 1920; y--) {
+                            years.push(String(y));
+                        }
+                        return years;
+                    },
+                    getDaysInBirthMonth() {
+                        const yearNum = Number(this.birthYear) || 2000;
+                        const monthNum = Number(this.birthMonth) || 1;
+                        return new Date(yearNum, monthNum, 0).getDate();
+                    },
+                    onBirthdaySelectChange() {
+                        if (!this.birthDay && !this.birthMonth && !this.birthYear) {
+                            this.userBirthday = '';
+                            this.saveUserBirthday();
+                            return;
+                        }
+
+                        if (!this.birthDay || !this.birthMonth || !this.birthYear) {
+                            return;
+                        }
+
+                        const maxDays = this.getDaysInBirthMonth();
+                        if (Number(this.birthDay) > maxDays) {
+                            this.birthDay = String(maxDays);
+                        }
+
+                        const yyyy = String(this.birthYear).padStart(4, '0');
+                        const mm = String(this.birthMonth).padStart(2, '0');
+                        const dd = String(this.birthDay).padStart(2, '0');
+                        this.userBirthday = `${yyyy}-${mm}-${dd}`;
+                        this.saveUserBirthday();
+                    },
+                    clearUserBirthday() {
+                        this.birthDay = '';
+                        this.birthMonth = '';
+                        this.birthYear = '';
+                        this.userBirthday = '';
+                        this.saveUserBirthday();
+                    },
+                    saveUserBirthday() {
+                        this.sendRequest('user/profile.php', {
+                            userId: this.userId,
+                            birthday: this.userBirthday || ''
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.userBirthday = res.birthday || '';
+                                this.syncBirthdayPartsFromIso(this.userBirthday);
+                            }
+                        });
+                    },
+                    saveUserProfession() {
+                        const trimmed = String(this.userProfession || '').trim().slice(0, 100);
+                        this.userProfession = trimmed;
+                        this.sendRequest('user/profile.php', {
+                            userId: this.userId,
+                            profession: trimmed
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.userProfession = res.profession || '';
+                            }
+                        });
+                    },
+                    async simpleCheckbox(type, isChecked) {
+                        const data = {
+                            userId: this.userId,
+                            type: type,         
+                            checked: isChecked ? 1 : 0
+                        };
+
+                        try {
+                            await this.sendRequest('user/simpleCheckbox.php', data);
+                        } catch (error) {
+                            console.error("Ошибка при работе с универсальным чекбоксом:", error);
+                        }
+                    }
+
+                }
+            });
+
+            // Монтируем Vue-приложение к DOM-элементу Битрикса
+            app.mount('#app');
+
+        }
+        initVueApp();
+    });
+</script>
+</head>
+
+<body id="app" class="d-flex flex-column align-items-center bg-color text-white p-3">
+    <div v-if="!pageReady" class="d-flex flex-column justify-content-center align-items-center m-auto">
+        <div class="text-center">
+            <span id="permanentAnswer" class="fs-6" v-html="permanentAnswer"></span>
+        </div>
+
+        <div class="text-center w-300px">
+            <input 
+                type="text"
+                v-model="code" 
+                @keydown.enter="verifyCode(code)"
+                placeholder="Код из бота" 
+                maxlength="18"
+                class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2 mt-3"
+            />
+            <button 
+                @click="verifyCode(code)"
+                :disabled="isLoggingIn"
+                class="btn btn-primary btn-lg w-100 fw-bold mt-3"
+            >
+                {{ isLoggingIn ? 'Вход...' : 'Войти' }}
+            </button>
+        </div>
+    </div>
+
+    <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
+        <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
+            <div class="d-flex flex-column">
+                <div class="fs-5 mb-2">Категории</div>
+                <div id="selection" class="d-flex flex-column">
+                    <div 
+                        v-for="(mainSection, index) in mainSections" 
+                        :key="mainSection.ID" 
+                        class="mainSection-item cursor-pointer"
+                        @click="loadSubSections(mainSection, index)"
+                    >
+                        <div 
+                            class="d-flex align-items-center justify-content-between h-100 py-1 rounded w-260px" 
+                            :class="{ 'menu-color': mainSection.isSubSectionVisible }"
+                        >
+                            <!-- Чекбокс -->
+                            <input 
+                                type="checkbox" 
+                                v-model="mainSection.checked" 
+                                @change="sectionSubscription('mainSection',mainSection,'',index)"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px"
+                            >
+                            <!-- Название раздела -->
+                            <div class="d-flex align-items-center overflow-hidden flex-grow-1">
+                                <span class="text-truncate ms-8px">
+                                    {{ mainSection.NAME }}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center flex-shrink-0 ms-2">
+                                <span 
+                                    v-if="hasActiveMainFilter(mainSection)" 
+                                    class="position-relative d-inline-flex align-items-center justify-content-center rounded bg-primary text-white me-2 w-22px h-22px fs-12px"
+                                    title="В разделе есть активные фильтры подразделов"
+                                >
+                                    ⚙️
+                                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"></span>
+                                </span>
+                                <img 
+                                    class="filter-white transition-easy-time-05 cursor-pointer pointer-events-none" 
+                                    :class="{
+                                        'rotate-180': mainSection.isSubSectionVisible,
+                                        'opacity-0': mainSection.ID == 135
+                                    }" 
+                                    height="8" 
+                                    width="8" 
+                                    src="svg/check.svg"
+                                >
+                            </div>
+                            <!-- Показываем подразделы -->
+                        </div>
+
+                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2 w-252px">
+                            <div 
+                                v-for="subSection in mainSection.subSections" 
+                                :key="subSection.ID" 
+                                class="d-flex flex-column my-1"
+                            >
+                                <div 
+                                    class="subSection-item d-flex align-items-center justify-content-between py-1 px-1 rounded cursor-pointer"
+                                    :class="{ 'menu-color': activeSubFilterId === String(subSection.ID) }"
+                                    @click.stop="onSubSectionClick(subSection, mainSection)"
+                                >
+                                    <div class="d-flex align-items-center overflow-hidden">
+                                        <input 
+                                            type="checkbox" 
+                                            v-model="subSection.checked"
+                                            @change="sectionSubscription('subSection',subSection,mainSection,index)"
+                                            @click.stop
+                                            class="cursor-pointer min-w-20px w-20px h-20px flex-shrink-0"
+                                        >
+                                        <span class="text-truncate ms-8px">
+                                            {{ subSection.NAME }}
+                                        </span>
+                                    </div>
+                                    <div class="d-flex align-items-center flex-shrink-0 ms-2">
+                                        <span 
+                                            class="position-relative d-inline-flex align-items-center justify-content-center rounded w-24px h-24px fs-13px"
+                                            :class="!isPremiumActive ? 'opacity-25' : ((hasActiveSubFilter(subSection.ID) || activeSubFilterId === String(subSection.ID)) ? 'bg-primary text-white' : 'opacity-50')"
+                                            :title="!isPremiumActive ? 'Доступно с Премиум' : (hasActiveSubFilter(subSection.ID) ? 'Фильтр активен' : 'Настроить фильтр')"
+                                        >
+                                            <span class="gear-spin" :class="{ 'gear-spin-active': activeSubFilterId === String(subSection.ID) }">⚙️</span>
+                                            <span 
+                                                v-if="isPremiumActive && hasActiveSubFilter(subSection.ID)" 
+                                                class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"
+                                            ></span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div 
+                                    v-if="activeSubFilterId === String(subSection.ID)" 
+                                    @click.stop
+                                    class="menu-color p-2 mt-1 rounded border border-secondary d-flex flex-column gap-2"
+                                >
+                                    <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                        <span>Фильтр ({{ getActiveSubFiltersCount() }}/10)</span>
+                                        <button 
+                                            v-if="hasActiveSubFilter(subSection.ID)"
+                                            type="button" 
+                                            @click="resetSubSectionFilter(subSection.ID)" 
+                                            class="btn btn-link btn-sm text-danger p-0 text-decoration-none cursor-pointer"
+                                        >Сбросить</button>
+                                    </div>
+
+                                    <div class="btn-group btn-group-sm w-100" role="group">
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'masks' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'masks'">🔍 Маска</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'stopWords' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'stopWords'">🚫 Стоп</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'price' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'price'">💰 Цена</button>
+                                        <button type="button" class="btn px-1 cursor-pointer" :class="subFilterTab === 'extra' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'extra'">📦⭐</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'masks'" class="d-flex flex-column gap-1">
+                                        <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                            <span>Маска (%pro%, slim%)</span>
+                                            <span>{{ sectionFilters[String(subSection.ID)].masks.length }}/10</span>
+                                        </div>
+                                        <div 
+                                            v-for="(mask, mIdx) in sectionFilters[String(subSection.ID)].masks" 
+                                            :key="mIdx" 
+                                            class="d-flex align-items-center gap-1"
+                                        >
+                                            <input
+                                                type="text"
+                                                v-model="sectionFilters[String(subSection.ID)].masks[mIdx]"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="%pro%"
+                                                maxlength="60"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                @click="removeSubFilterWord(subSection.ID, 'masks', mIdx)" 
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0 cursor-pointer w-28px h-28px line-h-1"
+                                                title="Удалить маску"
+                                            >✕</button>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            @click="addSubFilterWord(subSection.ID, 'masks')" 
+                                            :disabled="sectionFilters[String(subSection.ID)].masks.length >= 10"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold cursor-pointer"
+                                        >+ Маска ({{ sectionFilters[String(subSection.ID)].masks.length }}/10)</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'stopWords'" class="d-flex flex-column gap-1">
+                                        <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                            <span>Стоп-слова (%чехол%, б/у%)</span>
+                                            <span>{{ sectionFilters[String(subSection.ID)].stopWords.length }}/10</span>
+                                        </div>
+                                        <div 
+                                            v-for="(stopWord, sIdx) in sectionFilters[String(subSection.ID)].stopWords" 
+                                            :key="sIdx" 
+                                            class="d-flex align-items-center gap-1"
+                                        >
+                                            <input
+                                                type="text"
+                                                v-model="sectionFilters[String(subSection.ID)].stopWords[sIdx]"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="%чехол%"
+                                                maxlength="60"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                @click="removeSubFilterWord(subSection.ID, 'stopWords', sIdx)" 
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0 cursor-pointer w-28px h-28px line-h-1"
+                                                title="Удалить стоп-слово"
+                                            >✕</button>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            @click="addSubFilterWord(subSection.ID, 'stopWords')" 
+                                            :disabled="sectionFilters[String(subSection.ID)].stopWords.length >= 10"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold cursor-pointer"
+                                        >+ Стоп-слово ({{ sectionFilters[String(subSection.ID)].stopWords.length }}/10)</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'price'" class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small mb-1 text-white-50">От, ₽</label>
+                                            <input
+                                                type="number"
+                                                inputmode="numeric"
+                                                min="0"
+                                                v-model.number="sectionFilters[String(subSection.ID)].priceRange.min"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="0"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                            />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small mb-1 text-white-50">До, ₽</label>
+                                            <input
+                                                type="number"
+                                                inputmode="numeric"
+                                                min="0"
+                                                v-model.number="sectionFilters[String(subSection.ID)].priceRange.max"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="Макс."
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'extra'" class="d-flex flex-column gap-2">
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1 text-white-50">Рейтинг от:</label>
+                                                <input
+                                                    type="number"
+                                                    inputmode="decimal"
+                                                    step="0.1"
+                                                    min="0"
+                                                    max="5"
+                                                    v-model.number="sectionFilters[String(subSection.ID)].minRating"
+                                                    @input="if (sectionFilters[String(subSection.ID)].minRating > 5) sectionFilters[String(subSection.ID)].minRating = 5; if (sectionFilters[String(subSection.ID)].minRating < 0) sectionFilters[String(subSection.ID)].minRating = 0;"
+                                                    @blur="saveSubSectionFilter(subSection.ID)"
+                                                    @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                    placeholder="4.5"
+                                                    class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                                />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1 text-white-50">Отзывов от:</label>
+                                                <input
+                                                    type="number"
+                                                    inputmode="numeric"
+                                                    min="0"
+                                                    v-model.number="sectionFilters[String(subSection.ID)].minReviews"
+                                                    @blur="saveSubSectionFilter(subSection.ID)"
+                                                    @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                    placeholder="10"
+                                                    class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="small text-white-50">Маркетплейсы:</span>
+                                            <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    :checked="(sectionFilters[String(subSection.ID)].marketplaces || []).includes(Number(market.ID))"
+                                                    @change="toggleSubMarketplace(subSection.ID, market.ID, $event.target.checked)"
+                                                    class="cursor-pointer w-20px h-20px"
+                                                >
+                                                <span class="ps-2 small">{{ market.NAME }}</span>
+                                            </div>
+                                            <div v-if="!marketplaces.length" class="small text-white-50">Площадки не загружены</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex flex-column mb-3 align-items-center justify-content-center position-sticky bottom-0 z-9">
+            <div class="d-flex flex-column position-relative">
+                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg border-bottom border-secondary w-260px filter-dropdown-panel" ref="marketplaceFilterRef">
+                    <div v-if="bottomMenuTab === 'premium'" class="d-flex flex-column gap-2 text-white">
+                        <div class="d-flex align-items-center justify-content-between pb-1 border-bottom border-secondary">
+                            <span class="fs-6 fw-bold">⭐ Премиум-доступ</span>
+                            <span class="badge" :class="isPremiumActive ? 'bg-success' : 'bg-danger'">
+                                {{ isPremiumActive ? 'Активен' : 'Истёк' }}
+                            </span>
+                        </div>
+
+                        <div class="d-flex flex-column small">
+                            <span class="text-white-50">Срок действия:</span>
+                            <span class="fw-semibold mt-1" v-if="premIsLegacy">
+                                Бессрочный доступ
+                            </span>
+                            <span class="fw-semibold mt-1" v-else-if="premUntil">
+                                {{ isPremiumActive ? 'До ' + premUntil + ' (МСК)' : 'Завершён ' + premUntil + ' (МСК)' }}
+                            </span>
+                            <span class="fw-semibold mt-1" v-else>
+                                Не активен
+                            </span>
+                        </div>
+
+                        <div v-if="!isPremiumActive" class="small text-warning pt-1 border-top border-secondary">
+                            Бесплатный 1-месячный период завершён. Фильтры временно отключены — товары приходят по выбранным разделам.
+                        </div>
+                        <div v-else class="small text-white-50 pt-1 border-top border-secondary">
+                            Доступны: маски и стоп-слова подразделов, фильтр по цене, рейтингу, маркетплейсам, расписанию и нейроозвучка.
+                        </div>
+                    </div>
+
+                    <div v-if="bottomMenuTab === 'profile'" class="d-flex flex-column gap-2 text-white">
+                        <div class="d-flex align-items-center justify-content-between pb-1 border-bottom border-secondary">
+                            <span class="fs-6 fw-bold">👤 Профиль</span>
+                            <span v-if="profileUserId" class="small text-white-50">ID {{ profileUserId }}</span>
+                        </div>
+
+                        <div class="d-flex flex-column gap-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label small mb-0 text-white-50">Дата рождения:</label>
+                                <span v-if="getUserAgeLabel()" class="badge bg-primary">{{ getUserAgeLabel() }}</span>
+                            </div>
+                            <div class="row g-1">
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthDay"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
+                                    >
+                                        <option value="">День</option>
+                                        <option v-for="d in getDaysInBirthMonth()" :key="d" :value="String(d)">{{ String(d).padStart(2, '0') }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthMonth"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
+                                    >
+                                        <option value="">Мес.</option>
+                                        <option v-for="m in getBirthMonthsList()" :key="m.val" :value="m.val">{{ m.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthYear"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
+                                    >
+                                        <option value="">Год</option>
+                                        <option v-for="y in getBirthYearsList()" :key="y" :value="y">{{ y }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button
+                                v-if="userBirthday || birthDay || birthMonth || birthYear"
+                                type="button"
+                                @click="clearUserBirthday()"
+                                class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none cursor-pointer"
+                            >Сбросить дату</button>
+                        </div>
+
+                        <div class="d-flex flex-column gap-1 pt-1 border-top border-secondary">
+                            <label class="form-label small mb-0 text-white-50">Должность:</label>
+                            <input
+                                type="text"
+                                v-model="userProfession"
+                                @blur="saveUserProfession()"
+                                @keydown.enter="saveUserProfession()"
+                                maxlength="100"
+                                placeholder="Например: Инженер"
+                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                            />
+                        </div>
+                    </div>
+
+                    <div v-if="bottomMenuTab === 'filter' && isPremiumActive" class="d-flex flex-column">
+                        <div 
+                            @click="$refs.topPostsCheckRef.click();" 
+                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
+                        >
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">⭐</div>
+                            <div class="ms-2 w-130px">
+                                Топ постов дня
+                            </div>
+                            <!-- Переносим вызов функции в событие @change, оно срабатывает строго ПОСЛЕ того, как v-model обновил переменную! -->
+                            <input 
+                                type="checkbox" 
+                                ref="topPostsCheckRef"
+                                v-model="topPosts"
+                                @change="simpleCheckbox('topPosts', topPosts);"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px me-minus-4px"
+                            >
+                        </div>
+                        
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div 
+                            @click="$refs.voiceoverCheckRef.click();" 
+                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
+                        >
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🎙</div>
+                            <div class="ms-2 w-130px">
+                                Нейроозвучка
+                            </div>
+                            <input 
+                                type="checkbox" 
+                                ref="voiceoverCheckRef"
+                                v-model="voiceover"
+                                @change="simpleCheckbox('voiceover', voiceover);"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px me-minus-4px"
+                            >
+                        </div>
+
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div 
+                            @click="$refs.priceDropCheckRef.click();" 
+                            class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
+                        >
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🟢</div>
+                            <div class="ms-2 text-nowrap w-130px">
+                                Только снижение
+                            </div>
+                            <input 
+                                type="checkbox" 
+                                ref="priceDropCheckRef"
+                                v-model="priceDropOnly"
+                                @change="simpleCheckbox('priceDropOnly', priceDropOnly);"
+                                @click.stop
+                                class="cursor-pointer min-w-20px w-20px h-20px me-minus-4px"
+                            >
+                        </div>
+
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="priceFilterActive = !priceFilterActive">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">💰</div>
+                            <span class="ms-2 text-white w-125px">Цена, ₽</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="priceFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column text-white" :class="priceFilterActive ? 'mt-3' : ''" v-if="priceFilterActive">
+                            <div class="row g-3">
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">От:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="priceMin"
+                                        @blur="priceRange()"
+                                        @keydown.enter="priceRange()"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">До:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="priceMax"
+                                        @blur="priceRange()"
+                                        @keydown.enter="priceRange()"
+                                        placeholder="Макс."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="ratingFilterActive = !ratingFilterActive">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🌟</div>
+                            <span class="ms-2 text-white text-nowrap w-125px">Рейтинг/отзывы</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="ratingFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column text-white" :class="ratingFilterActive ? 'mt-3' : ''" v-if="ratingFilterActive">
+                            <div class="row g-3">
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">Рейтинг от:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="decimal"
+                                        step="0.1"
+                                        min="0"
+                                        max="5"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="globalMinRating"
+                                        @input="if (globalMinRating > 5) globalMinRating = 5; if (globalMinRating < 0) globalMinRating = 0;"
+                                        @blur="saveGlobalRatingFilter()"
+                                        @keydown.enter="saveGlobalRatingFilter()"
+                                        placeholder="4.5"
+                                    />
+                                </div>
+                                <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">Отзывов от:</label>
+                                    <input
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="0"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                        v-model.number="globalMinReviews"
+                                        @blur="saveGlobalRatingFilter()"
+                                        @keydown.enter="saveGlobalRatingFilter()"
+                                        placeholder="10"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleTimeRangeFilter">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🕒</div>
+                            <span class="ms-2 w-125px">Время отправки</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="timeRangeFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                        </div>
+                        <div class="d-flex flex-column" :class="timeRangeFilterActive ? 'mt-3' : ''" v-if="timeRangeFilterActive">
+                            <div class="row g-3">
+                                <span class="mb-2 mt-3">Время отправки по МСК</span>
+                                <!-- Поле "С" -->
+                                <div class="col-6 my-0">
+                                <label class="form-label small mb-1 text-white fw-bold">С:</label>
+                                    <input 
+                                        type="text" 
+                                        :value="startTime"
+                                        @input="applyMask($event, 'startTime')"
+                                        @blur="validateField('startTime'); timeRange();" 
+                                        maxlength="5"
+                                        placeholder="00:00"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                    />
+                                    </div>
+
+                                    <!-- Поле До -->
+                                    <div class="col-6 my-0">
+                                    <label class="form-label small mb-1 text-white fw-bold">До:</label>
+                                    <input 
+                                        type="text" 
+                                        :value="endTime"
+                                        @input="applyMask($event, 'endTime')"
+                                        @blur="validateField('endTime'); timeRange();" 
+                                        maxlength="5"
+                                        placeholder="24:00"
+                                        class="form-control form-control-lg font-monospace text-center bg-transparent text-white rounded border-2"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div class="small mt-2 text-center text-white">
+                                Пример: С 09:00 до 18:00 по МСК
+                            </div>
+                        </div>
+                    </div>
+                    <div class="my-2 w-100 h-0px"></div>
+                    <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleMarketplaceFilter">
+                        <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">📦</div>
+                        <span class="ms-2 w-125px">Маркетплейсы</span>
+                        <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
+                    </div>
+                    <div class="d-flex flex-column gap-1 text-white" :class="isFilterMarketplaceActive ? 'mt-3' : ''" v-if="isFilterMarketplaceActive">
+                        <!-- 1. Меняем :key на уникальный ID -->
+                        <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
+                            <!-- 2. Передаем в функцию $event.target.checked -->
+                            <input 
+                                type="checkbox" 
+                                :checked="market.checked == 1"
+                                @change="marketSubscription(1,market.ID,$event.target.checked)"
+                                @click.stop
+                                class="cursor-pointer w-20px h-20px"
+                            >
+                            <span class="ps-2">{{ market.NAME }}</span>
+                        </div>
+                        
+                        <div v-if="marketplaces.length === 0" class="text-muted small">
+                            Список пуст или загружается...
+                        </div>
+                    </div>
+                </div>
+                <div class="fs-6 fw-bolder py-3 px-1 pt-2 menu-color d-flex align-items-center justify-content-around w-260px" :class="{ 'rounded-top': !isFilterActive }" ref="filterBtnRef">
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
+                        :class="{ 'opacity-50': !isPremiumActive }"
+                        @click.stop="toggleBottomMenu('filter')"
+                    >
+                        <div class="w-20px h-20px">{{ isPremiumActive ? '⚙️' : '🔒' }}</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'filter' }">Фильтр</span>
+                    </div>
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
+                        @click.stop="toggleBottomMenu('premium')"
+                    >
+                        <div class="w-20px h-20px">⭐</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'premium' }">Премиум</span>
+                    </div>
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
+                        @click.stop="toggleBottomMenu('profile')"
+                    >
+                        <div class="w-20px h-20px">👤</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'profile' }">Профиль</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <transition name="fade">
+        <div v-if="ajaxAnswer" class="d-flex justify-content-center position-fixed start-50 translate-middle-x ajax-toast-box">
+            
+            <div id="ajaxAnswer" class="fs-6 p-2 rounded text-center shadow-lg w-100 fw-semibold ajax-toast-card">
+                {{ ajaxAnswer }}
+            </div>
+        </div>
+    </transition>
+</body>
+</html>
