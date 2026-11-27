@@ -14,9 +14,16 @@
         background-color: #191A22;
     }
     input.form-control,
-    input.form-control:focus {
+    input.form-control:focus,
+    select.form-select,
+    select.form-select:focus {
         color: #ffffff !important;
         background-color: transparent !important;
+        color-scheme: dark;
+    }
+    select.form-select option {
+        background-color: #191A22;
+        color: #ffffff;
     }
     input::placeholder {
         color: rgba(255, 255, 255, 0.5) !important;
@@ -1345,7 +1352,7 @@
                                     <select
                                         v-model="birthDay"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm menu-color text-white border-secondary px-1 text-center cursor-pointer"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">День</option>
                                         <option v-for="d in getDaysInBirthMonth()" :key="d" :value="String(d)">{{ String(d).padStart(2, '0') }}</option>
@@ -1355,7 +1362,7 @@
                                     <select
                                         v-model="birthMonth"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm menu-color text-white border-secondary px-1 text-center cursor-pointer"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">Мес.</option>
                                         <option v-for="m in getBirthMonthsList()" :key="m.val" :value="m.val">{{ m.label }}</option>
@@ -1365,7 +1372,7 @@
                                     <select
                                         v-model="birthYear"
                                         @change="onBirthdaySelectChange()"
-                                        class="form-select form-select-sm menu-color text-white border-secondary px-1 text-center cursor-pointer"
+                                        class="form-select form-select-sm bg-transparent text-white border-secondary px-1 text-center cursor-pointer"
                                     >
                                         <option value="">Год</option>
                                         <option v-for="y in getBirthYearsList()" :key="y" :value="y">{{ y }}</option>
