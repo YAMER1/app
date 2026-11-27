@@ -543,17 +543,39 @@
                             this.loadAllFilterData();
                         }
                     },
-                    savePdAgreement() {
-                        this.sendRequest('user/profile.php', {
-                            userId: this.userId,
-                            pdAgreed: this.pdAgreed
-                        }).then(res => {
-                            if (res && res.success) {
-                                this.pdAgreed = Boolean(res.pdAgreed);
+                    confirmGuideContinue() {
+                        if (!this.pdAgreed) {
+                            this.pdAgreed = true;
+                            this.savePdAgreement();
+                            return;
+                        }
+                        this.isGuideOpen = false;
+                        if (this.mainSections.length === 0) {
+                            this.loadMainSections();
+                        }
+                    },
+                    async savePdAgreement() {
+                        const res = await this.simpleCheckbox('pdAgreement', this.pdAgreed);
+                        if (res && res.success) {
+                            this.pdAgreed = Boolean(res.pdAgreed);
+                            if (this.pdAgreed) {
+                                this.isGuideOpen = false;
+                                if (this.mainSections.length === 0) {
+                                    this.loadMainSections();
+                                }
+                            } else {
+                                this.mainSections = [];
+                                this.isFilterActive = false;
+                                this.isGuideOpen = true;
                             }
-                        });
+                        }
                     },
                     toggleBottomMenu(tabName) {
+                        if (!this.pdAgreed) {
+                            this.isGuideOpen = true;
+                            this.ajaxAnswer = "Сначала примите условия в Справке";
+                            return;
+                        }
                         if (tabName === 'filter' && !this.isPremiumActive) {
                             this.ajaxAnswer = "Пробный Премиум-доступ завершён. Продлите подписку во вкладке Премиум.";
                             this.bottomMenuTab = 'premium';
@@ -573,13 +595,13 @@
                             this.loadAllFilterData();
                         }
                     },
-                    loadAllFilterData() {
+                    loadAllFilterData(onAfterLoad = null) {
                         const data = {
                             userId: this.userId,
                             allProducts: true
                         };
 
-                        this.sendRequest('premium/getFilterData.php', data)
+                        return this.sendRequest('premium/getFilterData.php', data)
                             .then(result => {
                                 if (result && result.success) {
                                     this.filterLoaded = true; // Фиксируем успешную загрузку
@@ -631,8 +653,12 @@
                                     } else {
                                         this.sectionParents = {};
                                     }
+                                    if (typeof onAfterLoad === 'function') {
+                                        onAfterLoad(result);
+                                    }
                                 } else {
                                     this.ajaxAnswer = "Не удалось загрузить настройки фильтра.";
+                                    this.isLoggingIn = false;
                                 }
                             }).catch(error => {
                                 console.error("Критическая ошибка загрузки единого фильтра:", error);
@@ -640,6 +666,7 @@
                                 this.marketplaces = [];
                                 this.startTime = '00:00';
                                 this.endTime = '24:00';
+                                this.isLoggingIn = false;
                             });
                     },
                     handleClickOutside(event) {
@@ -829,12 +856,21 @@
                                     this.userId = result.userId; 
                                     this.ajaxAnswer = result.message;
                                     
-                                    // ИСПРАВЛЕНО: сохраняем secret не только в память Vue, 
-                                    // но и в localStorage для последующих сессий
+                                    // Сохраняем secret не только в память Vue, но и в localStorage для последующих сессий
                                     this.secret = result.secret; 
                                     localStorage.setItem('secret', result.secret);
                                     
-                                    this.loadMainSections(); 
+                                    this.loadAllFilterData(() => {
+                                        if (this.pdAgreed) {
+                                            this.isGuideOpen = false;
+                                            this.loadMainSections();
+                                        } else {
+                                            this.isGuideOpen = true;
+                                            this.pageReady = true;
+                                            this.permanentAnswer = null;
+                                            this.isLoggingIn = false;
+                                        }
+                                    });
                                 } else {
                                     this.permanentAnswer = result.message ?? "Ошибка авторизации.";
                                     this.isLoggingIn = false; 
@@ -966,9 +1002,10 @@
                         };
 
                         try {
-                            await this.sendRequest('user/simpleCheckbox.php', data);
+                            return await this.sendRequest('user/simpleCheckbox.php', data);
                         } catch (error) {
                             console.error("Ошибка при работе с универсальным чекбоксом:", error);
+                            return null;
                         }
                     }
 
@@ -1013,13 +1050,12 @@
         <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
             <div class="d-flex flex-column">
                 <div class="d-flex align-items-center justify-content-between mb-2 w-260px">
-                    <button 
-                        type="button"
+                    <div 
                         @click="toggleGuide()"
-                        class="btn btn-sm menu-color text-white border border-secondary d-inline-flex align-items-center gap-1 px-2 py-1 cursor-pointer"
+                        class="d-inline-flex align-items-center gap-1 cursor-pointer fs-5"
+                        :class="isGuideOpen ? 'text-primary' : 'text-white-50'"
                     >
-                        <span>❓</span>
-                        <span class="fw-semibold fs-12px">Справка</span>
+                        <span>Справка</span>
                         <img 
                             class="filter-white transition-easy-time-05 pointer-events-none ms-1" 
                             :class="{ 'rotate-180': isGuideOpen }" 
@@ -1027,14 +1063,11 @@
                             width="8" 
                             src="svg/check.svg"
                         >
-                    </button>
-                    <div class="fs-5 fw-semibold text-white">Категории</div>
+                    </div>
+                    <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
                 </div>
 
-                <div v-if="isGuideOpen" class="menu-color rounded border border-secondary p-3 mb-3 w-260px d-flex flex-column gap-2 text-white fs-13px">
-                    <div>
-                        <strong>Справка</strong> — краткая инструкция, а справа от неё расположен список <strong>Категорий</strong> для подписки на скидки.
-                    </div>
+                <div v-if="isGuideOpen || !pdAgreed" class="menu-color rounded border border-secondary p-3 mb-3 w-260px d-flex flex-column gap-2 text-white fs-6">
                     <div>
                         <strong>1. Подписка:</strong> отметьте галочками нужные категории и подкатегории.
                     </div>
@@ -1042,10 +1075,13 @@
                         <strong>2. Фильтры (только для Премиум):</strong> нажмите на название подкатегории (<span class="text-info">⚙️</span>), чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки. Общие настройки находятся внизу во вкладке «Фильтр».
                     </div>
                     <div>
-                        <strong>3. Поддержка:</strong> в случае ошибки напишите в Telegram <a :href="'https:/' + '/t.me/ya_yura1'" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none fw-semibold">@ya_yura1</a>.
+                        <strong>3. Профиль:</strong> укажите дату рождения и должность, чтобы получать персональные поздравления с днём рождения от нейросети.
+                    </div>
+                    <div>
+                        <strong>4. Поддержка:</strong> в случае ошибки напишите в Telegram <a :href="'https:/' + '/t.me/ya_yura1'" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none fw-semibold">@ya_yura1</a>.
                     </div>
 
-                    <div class="pt-2 border-top border-secondary">
+                    <div class="pt-2 border-top border-secondary d-flex flex-column gap-2">
                         <label class="d-flex align-items-start gap-2 cursor-pointer mb-0">
                             <input 
                                 type="checkbox" 
@@ -1053,14 +1089,19 @@
                                 @change="savePdAgreement()"
                                 class="cursor-pointer min-w-20px w-20px h-20px mt-1 flex-shrink-0"
                             >
-                            <span class="fs-12px text-white">
-                                Я ознакомлен с условиями и даю согласие на обработку моих персональных данных (дата рождения, должность).
+                            <span class="fs-7 text-white">
+                                Я ознакомлен с условиями и даю согласие на обработку моих персональных данных.
                             </span>
                         </label>
+                        <button 
+                            type="button" 
+                            @click="confirmGuideContinue()" 
+                            class="btn btn-primary w-100 fw-bold cursor-pointer mt-1"
+                        >Продолжить</button>
                     </div>
                 </div>
 
-                <div id="selection" class="d-flex flex-column">
+                <div v-if="pdAgreed" id="selection" class="d-flex flex-column">
                     <div 
                         v-for="(mainSection, index) in mainSections" 
                         :key="mainSection.ID" 
@@ -1624,14 +1665,15 @@
                 <div class="fs-6 fw-bolder py-3 px-1 pt-2 menu-color d-flex align-items-center justify-content-around w-260px" :class="{ 'rounded-top': !isFilterActive }" ref="filterBtnRef">
                     <div 
                         class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
-                        :class="{ 'opacity-50': !isPremiumActive }"
+                        :class="{ 'opacity-50': !pdAgreed || !isPremiumActive }"
                         @click.stop="toggleBottomMenu('filter')"
                     >
-                        <div class="w-20px h-20px">{{ isPremiumActive ? '⚙️' : '🔒' }}</div>
+                        <div class="w-20px h-20px">{{ (pdAgreed && isPremiumActive) ? '⚙️' : '🔒' }}</div>
                         <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'filter' }">Фильтр</span>
                     </div>
                     <div 
                         class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
+                        :class="{ 'opacity-50': !pdAgreed }"
                         @click.stop="toggleBottomMenu('premium')"
                     >
                         <div class="w-20px h-20px">⭐</div>
@@ -1639,6 +1681,7 @@
                     </div>
                     <div 
                         class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-1"
+                        :class="{ 'opacity-50': !pdAgreed }"
                         @click.stop="toggleBottomMenu('profile')"
                     >
                         <div class="w-20px h-20px">👤</div>
