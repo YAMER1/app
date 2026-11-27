@@ -844,12 +844,16 @@
                                     </div>
                                     <div class="d-flex align-items-center flex-shrink-0 ms-2">
                                         <span 
-                                            class="badge d-inline-flex align-items-center gap-1"
-                                            :class="hasActiveSubFilter(subSection.ID) ? 'bg-primary text-white' : 'bg-dark text-white-50 border border-secondary'"
-                                            title="Настроить фильтр подраздела"
+                                            class="position-relative d-inline-flex align-items-center justify-content-center rounded"
+                                            :class="hasActiveSubFilter(subSection.ID) ? 'bg-primary text-white' : 'opacity-50'"
+                                            style="width: 24px; height: 24px; font-size: 13px;"
+                                            :title="hasActiveSubFilter(subSection.ID) ? 'Фильтр активен' : 'Настроить фильтр'"
                                         >
-                                            <span>⚙️</span>
-                                            <span style="font-size: 11px;">{{ hasActiveSubFilter(subSection.ID) ? 'Фильтр' : 'Настроить' }}</span>
+                                            ⚙️
+                                            <span 
+                                                v-if="hasActiveSubFilter(subSection.ID)" 
+                                                class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"
+                                            ></span>
                                         </span>
                                     </div>
                                 </div>
