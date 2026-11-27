@@ -1642,29 +1642,27 @@
                                 Пример: С 09:00 до 18:00 по МСК
                             </div>
                         </div>
-                    </div>
-                    <div class="my-2 w-100 h-0px"></div>
-                    <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleMarketplaceFilter">
-                        <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">📦</div>
-                        <span class="ms-2 w-125px">Маркетплейсы</span>
-                        <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
-                    </div>
-                    <div class="d-flex flex-column gap-1 text-white" :class="isFilterMarketplaceActive ? 'mt-3' : ''" v-if="isFilterMarketplaceActive">
-                        <!-- 1. Меняем :key на уникальный ID -->
-                        <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
-                            <!-- 2. Передаем в функцию $event.target.checked -->
-                            <input 
-                                type="checkbox" 
-                                :checked="market.checked == 1"
-                                @change="marketSubscription(1,market.ID,$event.target.checked)"
-                                @click.stop
-                                class="cursor-pointer w-20px h-20px"
-                            >
-                            <span class="ps-2">{{ market.NAME }}</span>
+                        <div class="my-2 w-100 h-0px"></div>
+                        <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="toggleMarketplaceFilter">
+                            <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">📦</div>
+                            <span class="ms-2 w-125px">Маркетплейсы</span>
+                            <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="isFilterMarketplaceActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
                         </div>
-                        
-                        <div v-if="marketplaces.length === 0" class="text-muted small">
-                            Список пуст или загружается...
+                        <div class="d-flex flex-column gap-1 text-white" :class="isFilterMarketplaceActive ? 'mt-3' : ''" v-if="isFilterMarketplaceActive">
+                            <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
+                                <input 
+                                    type="checkbox" 
+                                    :checked="market.checked == 1"
+                                    @change="marketSubscription(1,market.ID,$event.target.checked)"
+                                    @click.stop
+                                    class="cursor-pointer w-20px h-20px"
+                                >
+                                <span class="ps-2">{{ market.NAME }}</span>
+                            </div>
+                            
+                            <div v-if="marketplaces.length === 0" class="text-muted small">
+                                Список пуст или загружается...
+                            </div>
                         </div>
                     </div>
                 </div>
