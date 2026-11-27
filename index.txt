@@ -91,10 +91,10 @@
                                 clearTimeout(this.ajaxTimer);
                             }
 
-                            // Запускаем автоматическое скрытие через 2 секунды (2000 мс)
+                            // Запускаем автоматическое скрытие через 3.5 секунды (3500 мс)
                             this.ajaxTimer = setTimeout(() => {
                                 this.ajaxAnswer = null;
-                            }, 2000);
+                            }, 3500);
                         }
                     }
                 },
@@ -751,8 +751,8 @@
                             class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
                         >
                             <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🟢</div>
-                            <div class="ms-2" style="width: 130px;">
-                                Снижение цены
+                            <div class="ms-2 text-nowrap" style="width: 130px;">
+                                Только снижение
                             </div>
                             <input 
                                 type="checkbox" 

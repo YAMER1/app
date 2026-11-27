@@ -77,6 +77,9 @@
                         topPosts: true,
                         voiceover: false,
                         priceDropOnly: false,
+                        activeSubFilterId: null,
+                        subFilterTab: 'masks',
+                        sectionFilters: {},
                         secret: localStorage.getItem('secret') || null
                     };
                 },
@@ -238,6 +241,9 @@
                                     this.pageReady = true;
                                     this.permanentAnswer = null;
                                     this.isLoggingIn = false; // Сбрасываем флаг при полном успехе
+                                    if (!this.filterLoaded) {
+                                        this.loadAllFilterData();
+                                    }
                                 } else {
                                     this.permanentAnswer = `💥 Ошибка формата данных!\nСервер вернул некорректный ответ вместо списка категорий.\n\nДетали: ${JSON.stringify(response.message)}`;
                                     console.error("Ошибка: сервер вернул некорректный формат разделов", response);
@@ -282,8 +288,139 @@
                         }
                     },
                     
+                    ensureSubFilterDraft(subId) {
+                        const key = String(subId);
+                        if (!this.sectionFilters[key] || typeof this.sectionFilters[key] !== 'object') {
+                            this.sectionFilters[key] = {
+                                masks: [""],
+                                stopWords: [""],
+                                priceRange: { min: null, max: null },
+                                marketplaces: [],
+                                minRating: null
+                            };
+                            return;
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].masks) || this.sectionFilters[key].masks.length === 0) {
+                            this.sectionFilters[key].masks = [""];
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].stopWords) || this.sectionFilters[key].stopWords.length === 0) {
+                            this.sectionFilters[key].stopWords = [""];
+                        }
+                        if (!this.sectionFilters[key].priceRange || typeof this.sectionFilters[key].priceRange !== 'object') {
+                            this.sectionFilters[key].priceRange = { min: null, max: null };
+                        }
+                        if (!Array.isArray(this.sectionFilters[key].marketplaces)) {
+                            this.sectionFilters[key].marketplaces = [];
+                        }
+                        if (this.sectionFilters[key].minRating === undefined) {
+                            this.sectionFilters[key].minRating = null;
+                        }
+                    },
+                    hasActiveSubFilter(subId) {
+                        const f = this.sectionFilters[String(subId)];
+                        if (!f || typeof f !== 'object') return false;
+                        const hasMasks = Array.isArray(f.masks) && f.masks.some(m => String(m).replace(/%/g, '').trim() !== '');
+                        const hasStop = Array.isArray(f.stopWords) && f.stopWords.some(m => String(m).replace(/%/g, '').trim() !== '');
+                        const hasPrice = f.priceRange && ((f.priceRange.min !== null && f.priceRange.min !== '') || (f.priceRange.max !== null && f.priceRange.max !== ''));
+                        const hasMarkets = Array.isArray(f.marketplaces) && f.marketplaces.length > 0;
+                        const hasRating = f.minRating !== null && f.minRating !== '' && Number(f.minRating) > 0;
+                        return hasMasks || hasStop || hasPrice || hasMarkets || hasRating;
+                    },
+                    getActiveSubFiltersCount() {
+                        return Object.keys(this.sectionFilters).filter(id => this.hasActiveSubFilter(id)).length;
+                    },
                     onSubSectionClick(subSection, mainSection) {
-                        console.log('SubSection clicked:', subSection, 'parent MainSection:', mainSection);
+                        const subId = String(subSection.ID);
+                        if (this.activeSubFilterId === subId) {
+                            this.activeSubFilterId = null;
+                            return;
+                        }
+                        if (!this.hasActiveSubFilter(subId) && this.getActiveSubFiltersCount() >= 10) {
+                            this.ajaxAnswer = "Лимит: максимум 10 подразделов с фильтрами";
+                            return;
+                        }
+                        this.ensureSubFilterDraft(subId);
+                        this.subFilterTab = 'masks';
+                        this.activeSubFilterId = subId;
+                    },
+                    addSubFilterWord(subId, field) {
+                        const key = String(subId);
+                        this.ensureSubFilterDraft(key);
+                        if (this.sectionFilters[key][field].length >= 10) {
+                            this.ajaxAnswer = field === 'masks'
+                                ? "Лимит: максимум 10 масок на подраздел"
+                                : "Лимит: максимум 10 стоп-слов на подраздел";
+                            return;
+                        }
+                        this.sectionFilters[key][field].push("");
+                    },
+                    removeSubFilterWord(subId, field, idx) {
+                        const key = String(subId);
+                        if (!this.sectionFilters[key] || !Array.isArray(this.sectionFilters[key][field])) return;
+                        this.sectionFilters[key][field].splice(idx, 1);
+                        if (this.sectionFilters[key][field].length === 0) {
+                            this.sectionFilters[key][field].push("");
+                        }
+                        this.saveSubSectionFilter(key);
+                    },
+                    toggleSubMarketplace(subId, marketId, isChecked) {
+                        const key = String(subId);
+                        this.ensureSubFilterDraft(key);
+                        const mId = Number(marketId);
+                        const current = this.sectionFilters[key].marketplaces;
+                        if (isChecked && !current.includes(mId)) {
+                            current.push(mId);
+                        } else if (!isChecked) {
+                            this.sectionFilters[key].marketplaces = current.filter(id => id !== mId);
+                        }
+                        this.saveSubSectionFilter(key);
+                    },
+                    resetSubSectionFilter(subId) {
+                        const key = String(subId);
+                        delete this.sectionFilters[key];
+                        this.activeSubFilterId = null;
+                        this.sendRequest('user/sectionFilter.php', {
+                            userId: this.userId,
+                            sectionId: key,
+                            filter: {}
+                        }).then(res => {
+                            if (res && res.sectionFilters) {
+                                this.sectionFilters = res.sectionFilters;
+                            }
+                        });
+                    },
+                    saveSubSectionFilter(subId) {
+                        const key = String(subId);
+                        const draft = this.sectionFilters[key] || {};
+                        const pMin = draft.priceRange?.min;
+                        const pMax = draft.priceRange?.max;
+
+                        if (pMin !== null && pMin !== '' && pMax !== null && pMax !== '' && Number(pMin) > Number(pMax)) {
+                            this.ajaxAnswer = "Минимальная цена не может быть больше максимальной";
+                            return;
+                        }
+
+                        this.sendRequest('user/sectionFilter.php', {
+                            userId: this.userId,
+                            sectionId: key,
+                            filter: {
+                                masks: Array.isArray(draft.masks) ? draft.masks : [],
+                                stopWords: Array.isArray(draft.stopWords) ? draft.stopWords : [],
+                                priceRange: {
+                                    min: (pMin !== '' && pMin !== null && !Number.isNaN(Number(pMin))) ? Math.max(0, Math.floor(Number(pMin))) : null,
+                                    max: (pMax !== '' && pMax !== null && !Number.isNaN(Number(pMax))) ? Math.max(0, Math.floor(Number(pMax))) : null
+                                },
+                                marketplaces: Array.isArray(draft.marketplaces) ? draft.marketplaces : [],
+                                minRating: (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating))) ? Number(draft.minRating) : null
+                            }
+                        }).then(res => {
+                            if (res && res.sectionFilters) {
+                                this.sectionFilters = res.sectionFilters;
+                                if (this.activeSubFilterId === key) {
+                                    this.ensureSubFilterDraft(key);
+                                }
+                            }
+                        });
                     },
                     async sectionSubscription(sectionType, section, parentSection = null, index) {
                         const initialData = {
@@ -401,6 +538,11 @@
                                         this.marketplaces = result.marketplaces;
                                     } else if (result.marketplaces && result.marketplaces.data) {
                                         this.marketplaces = result.marketplaces.data;
+                                    }
+                                    if (result.sectionFilters && typeof result.sectionFilters === 'object' && !Array.isArray(result.sectionFilters)) {
+                                        this.sectionFilters = result.sectionFilters;
+                                    } else {
+                                        this.sectionFilters = {};
                                     }
                                 } else {
                                     this.ajaxAnswer = "Не удалось загрузить настройки фильтра.";
@@ -677,23 +819,193 @@
                             <!-- Показываем подразделы -->
                         </div>
 
-                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2" style="width:0px!important">
+                        <div v-if="mainSection.subSections && mainSection.subSections.length && mainSection.isSubSectionVisible" class="subSection mt-2 ms-2" style="width:252px;">
                             <div 
                                 v-for="subSection in mainSection.subSections" 
                                 :key="subSection.ID" 
-                                class="subSection-item d-flex align-items-center my-1"
-                                @click.stop="onSubSectionClick(subSection, mainSection)"
+                                class="d-flex flex-column my-1"
                             >
-                                <input 
-                                    type="checkbox" 
-                                    v-model="subSection.checked"
-                                    @change="sectionSubscription('subSection',subSection,mainSection,index)"
-                                    @click.stop
-                                    class="cursor-pointer min-w-20px w-20px h-20px"
+                                <div 
+                                    class="subSection-item d-flex align-items-center justify-content-between py-1 px-1 rounded cursor-pointer"
+                                    :class="{ 'menu-color': activeSubFilterId === String(subSection.ID) }"
+                                    @click.stop="onSubSectionClick(subSection, mainSection)"
                                 >
-                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
-                                    {{ subSection.NAME }}
-                                </span>
+                                    <div class="d-flex align-items-center overflow-hidden">
+                                        <input 
+                                            type="checkbox" 
+                                            v-model="subSection.checked"
+                                            @change="sectionSubscription('subSection',subSection,mainSection,index)"
+                                            @click.stop
+                                            class="cursor-pointer min-w-20px w-20px h-20px flex-shrink-0"
+                                        >
+                                        <span class="text-truncate" style="margin-left:8px;">
+                                            {{ subSection.NAME }}
+                                        </span>
+                                    </div>
+                                    <div class="d-flex align-items-center flex-shrink-0 ms-2">
+                                        <span 
+                                            class="badge d-inline-flex align-items-center gap-1"
+                                            :class="hasActiveSubFilter(subSection.ID) ? 'bg-primary text-white' : 'bg-dark text-white-50 border border-secondary'"
+                                            title="Настроить фильтр подраздела"
+                                        >
+                                            <span>⚙️</span>
+                                            <span style="font-size: 11px;">{{ hasActiveSubFilter(subSection.ID) ? 'Фильтр' : 'Настроить' }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div 
+                                    v-if="activeSubFilterId === String(subSection.ID)" 
+                                    @click.stop
+                                    class="menu-color p-2 mt-1 rounded border border-secondary d-flex flex-column gap-2"
+                                >
+                                    <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                        <span>Фильтр ({{ getActiveSubFiltersCount() }}/10)</span>
+                                        <button 
+                                            v-if="hasActiveSubFilter(subSection.ID)"
+                                            type="button" 
+                                            @click="resetSubSectionFilter(subSection.ID)" 
+                                            class="btn btn-link btn-sm text-danger p-0 text-decoration-none"
+                                        >Сбросить</button>
+                                    </div>
+
+                                    <div class="btn-group btn-group-sm w-100" role="group">
+                                        <button type="button" class="btn px-1" :class="subFilterTab === 'masks' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'masks'">🔍 Маска</button>
+                                        <button type="button" class="btn px-1" :class="subFilterTab === 'stopWords' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'stopWords'">🚫 Стоп</button>
+                                        <button type="button" class="btn px-1" :class="subFilterTab === 'price' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'price'">💰 Цена</button>
+                                        <button type="button" class="btn px-1" :class="subFilterTab === 'extra' ? 'btn-primary' : 'btn-outline-secondary text-white'" @click="subFilterTab = 'extra'">📦⭐</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'masks'" class="d-flex flex-column gap-1">
+                                        <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                            <span>Маска (%pro%, slim%)</span>
+                                            <span>{{ sectionFilters[String(subSection.ID)].masks.length }}/10</span>
+                                        </div>
+                                        <div 
+                                            v-for="(mask, mIdx) in sectionFilters[String(subSection.ID)].masks" 
+                                            :key="mIdx" 
+                                            class="d-flex align-items-center gap-1"
+                                        >
+                                            <input
+                                                type="text"
+                                                v-model="sectionFilters[String(subSection.ID)].masks[mIdx]"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="%pro%"
+                                                maxlength="60"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                @click="removeSubFilterWord(subSection.ID, 'masks', mIdx)" 
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0"
+                                                style="width: 28px; height: 28px; line-height: 1;"
+                                                title="Удалить маску"
+                                            >✕</button>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            @click="addSubFilterWord(subSection.ID, 'masks')" 
+                                            :disabled="sectionFilters[String(subSection.ID)].masks.length >= 10"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold"
+                                        >+ Маска ({{ sectionFilters[String(subSection.ID)].masks.length }}/10)</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'stopWords'" class="d-flex flex-column gap-1">
+                                        <div class="d-flex justify-content-between align-items-center small text-white-50">
+                                            <span>Стоп-слова (%чехол%, б/у%)</span>
+                                            <span>{{ sectionFilters[String(subSection.ID)].stopWords.length }}/10</span>
+                                        </div>
+                                        <div 
+                                            v-for="(stopWord, sIdx) in sectionFilters[String(subSection.ID)].stopWords" 
+                                            :key="sIdx" 
+                                            class="d-flex align-items-center gap-1"
+                                        >
+                                            <input
+                                                type="text"
+                                                v-model="sectionFilters[String(subSection.ID)].stopWords[sIdx]"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="%чехол%"
+                                                maxlength="60"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                @click="removeSubFilterWord(subSection.ID, 'stopWords', sIdx)" 
+                                                class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0 flex-shrink-0"
+                                                style="width: 28px; height: 28px; line-height: 1;"
+                                                title="Удалить стоп-слово"
+                                            >✕</button>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            @click="addSubFilterWord(subSection.ID, 'stopWords')" 
+                                            :disabled="sectionFilters[String(subSection.ID)].stopWords.length >= 10"
+                                            class="btn btn-sm btn-outline-primary w-100 mt-1 fw-bold"
+                                        >+ Стоп-слово ({{ sectionFilters[String(subSection.ID)].stopWords.length }}/10)</button>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'price'" class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small mb-1 text-white-50">От, ₽</label>
+                                            <input
+                                                type="number"
+                                                inputmode="numeric"
+                                                min="0"
+                                                v-model.number="sectionFilters[String(subSection.ID)].priceRange.min"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="0"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                            />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small mb-1 text-white-50">До, ₽</label>
+                                            <input
+                                                type="number"
+                                                inputmode="numeric"
+                                                min="0"
+                                                v-model.number="sectionFilters[String(subSection.ID)].priceRange.max"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="Макс."
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div v-if="subFilterTab === 'extra'" class="d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="form-label small mb-1 text-white-50">Рейтинг товара от (0–5):</label>
+                                            <input
+                                                type="number"
+                                                inputmode="decimal"
+                                                step="0.1"
+                                                min="0"
+                                                max="5"
+                                                v-model.number="sectionFilters[String(subSection.ID)].minRating"
+                                                @blur="saveSubSectionFilter(subSection.ID)"
+                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                placeholder="Например: 4.5"
+                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                            />
+                                        </div>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="small text-white-50">Маркетплейсы:</span>
+                                            <div v-for="market in marketplaces" :key="market.ID" class="d-flex align-items-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    :checked="(sectionFilters[String(subSection.ID)].marketplaces || []).includes(Number(market.ID))"
+                                                    @change="toggleSubMarketplace(subSection.ID, market.ID, $event.target.checked)"
+                                                    class="cursor-pointer w-20px h-20px"
+                                                >
+                                                <span class="ps-2 small">{{ market.NAME }}</span>
+                                            </div>
+                                            <div v-if="!marketplaces.length" class="small text-white-50">Площадки не загружены</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
