@@ -21,6 +21,14 @@
         background-color: transparent !important;
         color-scheme: dark;
     }
+    select.form-select {
+        --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://w3.org' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        background-image: var(--bs-form-select-bg-img) !important;
+        background-repeat: no-repeat !important;
+        background-position: right 0.35rem center !important;
+        background-size: 10px 8px !important;
+        padding-right: 1.25rem !important;
+    }
     select.form-select option {
         background-color: #191A22;
         color: #ffffff;
