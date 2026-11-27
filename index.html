@@ -78,6 +78,7 @@
                         premIsLegacy: false,
                         profileUserId: null,
                         userBirthday: '',
+                        userProfession: '',
                         birthDay: '',
                         birthMonth: '',
                         birthYear: '',
@@ -607,6 +608,7 @@
 
                                     this.profileUserId = result.profileId || null;
                                     this.userBirthday = result.birthday || '';
+                                    this.userProfession = result.profession || '';
                                     this.syncBirthdayPartsFromIso(this.userBirthday);
                                     this.isPremiumActive = result.isPremiumActive !== false;
                                     this.premUntil = result.premUntil || '';
@@ -962,6 +964,18 @@
                             if (res && res.success) {
                                 this.userBirthday = res.birthday || '';
                                 this.syncBirthdayPartsFromIso(this.userBirthday);
+                            }
+                        });
+                    },
+                    saveUserProfession() {
+                        const trimmed = String(this.userProfession || '').trim().slice(0, 100);
+                        this.userProfession = trimmed;
+                        this.sendRequest('user/profile.php', {
+                            userId: this.userId,
+                            profession: trimmed
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.userProfession = res.profession || '';
                             }
                         });
                     },
@@ -1365,6 +1379,19 @@
                                 class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none cursor-pointer"
                             >Очистить дату</button>
                         </div>
+
+                        <div class="p-2 rounded bg-dark border border-secondary d-flex flex-column gap-1">
+                            <label class="form-label small mb-0 text-white-50">Должность:</label>
+                            <input
+                                type="text"
+                                v-model="userProfession"
+                                @blur="saveUserProfession()"
+                                @keydown.enter="saveUserProfession()"
+                                maxlength="100"
+                                placeholder="Например: Инженер"
+                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                            />
+                        </div>
                     </div>
 
                     <div v-if="bottomMenuTab === 'filter' && isPremiumActive" class="d-flex flex-column">
@@ -1470,7 +1497,7 @@
                         <div class="my-2" style="width: 100%; height: 0px;"></div>
                         <div class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer" @click.stop="ratingFilterActive = !ratingFilterActive">
                             <div class="w-20px h-20px flex-shrink-0 d-flex align-items-center justify-content-center fs-5">🌟</div>
-                            <span class="ms-2 text-white" style="width:125px">Рейтинг и отзывы</span>
+                            <span class="ms-2 text-white text-nowrap" style="width:125px">Рейтинг/отзывы</span>
                             <img class="ms-3 filter-white transition-easy-time-05 cursor-pointer pointer-events-none" :class="ratingFilterActive ? 'rotate-180' : ''" height="8" width="8" src="svg/check.svg">
                         </div>
                         <div class="d-flex flex-column text-white" :class="ratingFilterActive ? 'mt-3' : ''" v-if="ratingFilterActive">
