@@ -1048,60 +1048,62 @@
 
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
-            <div class="d-flex flex-column position-relative">
-                <div class="d-flex align-items-center justify-content-between mb-2 w-260px">
-                    <div 
-                        @click="toggleGuide()"
-                        class="d-inline-flex align-items-center gap-1 cursor-pointer fs-5"
-                        :class="isGuideOpen ? 'text-primary' : 'text-white-50'"
-                    >
-                        <span>Справка</span>
-                        <img 
-                            class="filter-white transition-easy-time-05 pointer-events-none ms-1" 
-                            :class="{ 'rotate-180': isGuideOpen }" 
-                            height="8" 
-                            width="8" 
-                            src="svg/check.svg"
+            <div class="d-flex flex-column">
+                <div class="position-relative mb-2 w-260px">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div 
+                            @click="toggleGuide()"
+                            class="d-inline-flex align-items-center gap-1 cursor-pointer fs-5"
+                            :class="isGuideOpen ? 'text-primary' : 'text-white-50'"
                         >
-                    </div>
-                    <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
-                </div>
-
-                <div 
-                    v-if="isGuideOpen || !pdAgreed" 
-                    class="menu-color rounded p-3 w-260px d-flex flex-column gap-2 text-white fs-6"
-                    :class="pdAgreed ? 'position-absolute top-100 start-0 shadow-lg filter-dropdown-panel' : 'mb-3'"
-                >
-                    <div>
-                        <strong>1. Подписка:</strong> отметьте галочками нужные категории и подкатегории.
-                    </div>
-                    <div>
-                        <strong>2. Фильтры (только для Премиум):</strong> нажмите на название подкатегории (<span class="text-info">⚙️</span>), чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки. Общие настройки находятся внизу во вкладке «Фильтр».
-                    </div>
-                    <div>
-                        <strong>3. Профиль:</strong> укажите дату рождения и должность, чтобы получать персональные поздравления с днём рождения от нейросети.
-                    </div>
-                    <div>
-                        <strong>4. Поддержка:</strong> в случае ошибки напишите в Telegram <a :href="'https:/' + '/t.me/ya_yura1'" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none fw-semibold">@ya_yura1</a>.
-                    </div>
-
-                    <div class="pt-2 border-top border-secondary d-flex flex-column gap-2">
-                        <label class="d-flex align-items-start gap-2 cursor-pointer mb-0">
-                            <input 
-                                type="checkbox" 
-                                v-model="pdAgreed" 
-                                @change="savePdAgreement()"
-                                class="cursor-pointer min-w-20px w-20px h-20px mt-1 flex-shrink-0"
+                            <span>Справка</span>
+                            <img 
+                                class="filter-white transition-easy-time-05 pointer-events-none ms-1" 
+                                :class="{ 'rotate-180': isGuideOpen }" 
+                                height="8" 
+                                width="8" 
+                                src="svg/check.svg"
                             >
-                            <span class="fs-7 text-white">
-                                Я ознакомлен с условиями и даю согласие на обработку моих персональных данных.
-                            </span>
-                        </label>
-                        <button 
-                            type="button" 
-                            @click="confirmGuideContinue()" 
-                            class="btn btn-primary w-100 fw-bold cursor-pointer mt-1"
-                        >Продолжить</button>
+                        </div>
+                        <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
+                    </div>
+
+                    <div 
+                        v-if="isGuideOpen || !pdAgreed" 
+                        class="menu-color rounded p-3 w-260px d-flex flex-column gap-2 text-white fs-6"
+                        :class="pdAgreed ? 'position-absolute top-100 start-0 mt-1 shadow-lg filter-dropdown-panel z-3' : 'mt-2 mb-3'"
+                    >
+                        <div>
+                            <strong>1. Подписка:</strong> отметьте галочками нужные категории и подкатегории.
+                        </div>
+                        <div>
+                            <strong>2. Фильтры (только для Премиум):</strong> нажмите на название подкатегории (<span class="text-info">⚙️</span>), чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки. Общие настройки находятся внизу во вкладке «Фильтр».
+                        </div>
+                        <div>
+                            <strong>3. Профиль:</strong> укажите дату рождения и должность, чтобы получать персональные поздравления с днём рождения от нейросети.
+                        </div>
+                        <div>
+                            <strong>4. Поддержка:</strong> в случае ошибки напишите в Telegram <a :href="'https:/' + '/t.me/ya_yura1'" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none fw-semibold">@ya_yura1</a>.
+                        </div>
+
+                        <div class="pt-2 border-top border-secondary d-flex flex-column gap-2">
+                            <label class="d-flex align-items-start gap-2 cursor-pointer mb-0">
+                                <input 
+                                    type="checkbox" 
+                                    v-model="pdAgreed" 
+                                    @change="savePdAgreement()"
+                                    class="cursor-pointer min-w-20px w-20px h-20px mt-1 flex-shrink-0"
+                                >
+                                <span class="fs-7 text-white">
+                                    Я ознакомлен с условиями и даю согласие на обработку моих персональных данных.
+                                </span>
+                            </label>
+                            <button 
+                                type="button" 
+                                @click="confirmGuideContinue()" 
+                                class="btn btn-primary w-100 fw-bold cursor-pointer mt-1"
+                            >Продолжить</button>
+                        </div>
                     </div>
                 </div>
 
