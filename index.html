@@ -1051,6 +1051,7 @@
             <div class="d-flex flex-column">
                 <div class="position-relative mb-2 w-260px">
                     <div class="d-flex align-items-center justify-content-between">
+                        <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
                         <div 
                             @click="toggleGuide()"
                             class="d-inline-flex align-items-center gap-1 cursor-pointer fs-5"
@@ -1065,7 +1066,6 @@
                                 src="svg/check.svg"
                             >
                         </div>
-                        <div v-if="pdAgreed" class="fs-5 text-white">Категории</div>
                     </div>
 
                     <div 
