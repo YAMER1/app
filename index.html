@@ -72,6 +72,11 @@
                         ajaxAnswer: null,
                         isLoggingIn: false, // 1. Добавляем новый флаг состояния загрузки
                         isFilterActive: false,
+                        bottomMenuTab: 'filter',
+                        isPremiumActive: true,
+                        premUntil: '',
+                        premIsLegacy: false,
+                        userBirthday: '',
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
                         priceFilterActive: false,
@@ -87,6 +92,7 @@
                         activeSubFilterId: null,
                         subFilterTab: 'masks',
                         sectionFilters: {},
+                        sectionParents: {},
                         secret: localStorage.getItem('secret') || null
                     };
                 },
@@ -248,9 +254,6 @@
                                     this.pageReady = true;
                                     this.permanentAnswer = null;
                                     this.isLoggingIn = false; // Сбрасываем флаг при полном успехе
-                                    if (!this.filterLoaded) {
-                                        this.loadAllFilterData();
-                                    }
                                 } else {
                                     this.permanentAnswer = `💥 Ошибка формата данных!\nСервер вернул некорректный ответ вместо списка категорий.\n\nДетали: ${JSON.stringify(response.message)}`;
                                     console.error("Ошибка: сервер вернул некорректный формат разделов", response);
@@ -303,7 +306,8 @@
                                 stopWords: [""],
                                 priceRange: { min: null, max: null },
                                 marketplaces: [],
-                                minRating: null
+                                minRating: null,
+                                minReviews: null
                             };
                             return;
                         }
@@ -322,6 +326,9 @@
                         if (this.sectionFilters[key].minRating === undefined) {
                             this.sectionFilters[key].minRating = null;
                         }
+                        if (this.sectionFilters[key].minReviews === undefined) {
+                            this.sectionFilters[key].minReviews = null;
+                        }
                     },
                     hasActiveSubFilter(subId) {
                         const f = this.sectionFilters[String(subId)];
@@ -331,12 +338,33 @@
                         const hasPrice = f.priceRange && ((f.priceRange.min !== null && f.priceRange.min !== '') || (f.priceRange.max !== null && f.priceRange.max !== ''));
                         const hasMarkets = Array.isArray(f.marketplaces) && f.marketplaces.length > 0;
                         const hasRating = f.minRating !== null && f.minRating !== '' && Number(f.minRating) > 0;
-                        return hasMasks || hasStop || hasPrice || hasMarkets || hasRating;
+                        const hasReviews = f.minReviews !== null && f.minReviews !== '' && Number(f.minReviews) > 0;
+                        return hasMasks || hasStop || hasPrice || hasMarkets || hasRating || hasReviews;
                     },
                     getActiveSubFiltersCount() {
                         return Object.keys(this.sectionFilters).filter(id => this.hasActiveSubFilter(id)).length;
                     },
+                    hasActiveMainFilter(mainSection) {
+                        if (!this.isPremiumActive || !mainSection) return false;
+                        const mainId = String(mainSection.ID);
+
+                        if (Array.isArray(mainSection.subSections) && mainSection.subSections.length > 0) {
+                            if (mainSection.subSections.some(sub => this.hasActiveSubFilter(sub.ID))) {
+                                return true;
+                            }
+                        }
+
+                        return Object.keys(this.sectionFilters).some(subId => {
+                            return String(this.sectionParents[subId] ?? '') === mainId && this.hasActiveSubFilter(subId);
+                        });
+                    },
                     onSubSectionClick(subSection, mainSection) {
+                        if (!this.isPremiumActive) {
+                            this.ajaxAnswer = "Срок действия Премиум-доступа истёк. Доступна только подписка на разделы.";
+                            this.bottomMenuTab = 'premium';
+                            this.isFilterActive = true;
+                            return;
+                        }
                         const subId = String(subSection.ID);
                         if (this.activeSubFilterId === subId) {
                             this.activeSubFilterId = null;
@@ -346,9 +374,16 @@
                             this.ajaxAnswer = "Лимит: максимум 10 подразделов с фильтрами";
                             return;
                         }
+                        if (mainSection && mainSection.ID) {
+                            this.sectionParents[subId] = String(mainSection.ID);
+                        }
                         this.ensureSubFilterDraft(subId);
                         this.subFilterTab = 'masks';
                         this.activeSubFilterId = subId;
+
+                        if (!this.filterLoaded) {
+                            this.loadAllFilterData();
+                        }
                     },
                     addSubFilterWord(subId, field) {
                         const key = String(subId);
@@ -407,24 +442,45 @@
                             return;
                         }
 
+                        const prevMasks = Array.isArray(draft.masks) ? [...draft.masks] : [""];
+                        const prevStopWords = Array.isArray(draft.stopWords) ? [...draft.stopWords] : [""];
+
                         this.sendRequest('user/sectionFilter.php', {
                             userId: this.userId,
                             sectionId: key,
                             filter: {
-                                masks: Array.isArray(draft.masks) ? draft.masks : [],
-                                stopWords: Array.isArray(draft.stopWords) ? draft.stopWords : [],
+                                masks: prevMasks,
+                                stopWords: prevStopWords,
                                 priceRange: {
                                     min: (pMin !== '' && pMin !== null && !Number.isNaN(Number(pMin))) ? Math.max(0, Math.floor(Number(pMin))) : null,
                                     max: (pMax !== '' && pMax !== null && !Number.isNaN(Number(pMax))) ? Math.max(0, Math.floor(Number(pMax))) : null
                                 },
                                 marketplaces: Array.isArray(draft.marketplaces) ? draft.marketplaces : [],
-                                minRating: (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating))) ? Number(draft.minRating) : null
+                                minRating: (draft.minRating !== '' && draft.minRating !== null && !Number.isNaN(Number(draft.minRating))) ? Number(draft.minRating) : null,
+                                minReviews: (draft.minReviews !== '' && draft.minReviews !== null && !Number.isNaN(Number(draft.minReviews))) ? Math.max(0, Math.floor(Number(draft.minReviews))) : null
                             }
                         }).then(res => {
                             if (res && res.sectionFilters) {
                                 this.sectionFilters = res.sectionFilters;
                                 if (this.activeSubFilterId === key) {
                                     this.ensureSubFilterDraft(key);
+                                    const emptyMasksCount = prevMasks.filter(m => String(m).replace(/%/g, '').trim() === '').length;
+                                    const serverMasks = Array.isArray(this.sectionFilters[key].masks)
+                                        ? this.sectionFilters[key].masks.filter(m => String(m).replace(/%/g, '').trim() !== '')
+                                        : [];
+                                    this.sectionFilters[key].masks = [
+                                        ...serverMasks,
+                                        ...Array(Math.max(serverMasks.length === 0 ? 1 : 0, emptyMasksCount)).fill("")
+                                    ].slice(0, 10);
+
+                                    const emptyStopCount = prevStopWords.filter(m => String(m).replace(/%/g, '').trim() === '').length;
+                                    const serverStop = Array.isArray(this.sectionFilters[key].stopWords)
+                                        ? this.sectionFilters[key].stopWords.filter(m => String(m).replace(/%/g, '').trim() !== '')
+                                        : [];
+                                    this.sectionFilters[key].stopWords = [
+                                        ...serverStop,
+                                        ...Array(Math.max(serverStop.length === 0 ? 1 : 0, emptyStopCount)).fill("")
+                                    ].slice(0, 10);
                                 }
                             }
                         });
@@ -511,10 +567,23 @@
                             this.ajaxAnswer = "Выберите маркетплейсы";
                         }
                     },
-                    toggleFilter() {
-                        this.isFilterActive = !this.isFilterActive;
+                    toggleBottomMenu(tabName) {
+                        if (tabName === 'filter' && !this.isPremiumActive) {
+                            this.ajaxAnswer = "Пробный Премиум-доступ завершён. Продлите подписку во вкладке Премиум.";
+                            this.bottomMenuTab = 'premium';
+                            this.isFilterActive = true;
+                            return;
+                        }
 
-                        if (this.isFilterActive && !this.filterLoaded) {
+                        if (this.isFilterActive && this.bottomMenuTab === tabName) {
+                            this.isFilterActive = false;
+                            return;
+                        }
+
+                        this.bottomMenuTab = tabName;
+                        this.isFilterActive = true;
+
+                        if (!this.filterLoaded) {
                             this.loadAllFilterData();
                         }
                     },
@@ -528,6 +597,17 @@
                             .then(result => {
                                 if (result && result.success) {
                                     this.filterLoaded = true; // Фиксируем успешную загрузку
+
+                                    this.userBirthday = result.birthday || '';
+                                    this.isPremiumActive = result.isPremiumActive !== false;
+                                    this.premUntil = result.premUntil || '';
+                                    this.premIsLegacy = Boolean(result.premIsLegacy);
+                                    if (!this.isPremiumActive) {
+                                        this.activeSubFilterId = null;
+                                        if (this.bottomMenuTab === 'filter') {
+                                            this.bottomMenuTab = 'premium';
+                                        }
+                                    }
 
                                     this.topPosts = result.topPosts;
                                     this.voiceover = Boolean(result.voiceover);
@@ -550,6 +630,14 @@
                                         this.sectionFilters = result.sectionFilters;
                                     } else {
                                         this.sectionFilters = {};
+                                    }
+                                    if (this.activeSubFilterId) {
+                                        this.ensureSubFilterDraft(this.activeSubFilterId);
+                                    }
+                                    if (result.sectionParents && typeof result.sectionParents === 'object' && !Array.isArray(result.sectionParents)) {
+                                        this.sectionParents = result.sectionParents;
+                                    } else {
+                                        this.sectionParents = {};
                                     }
                                 } else {
                                     this.ajaxAnswer = "Не удалось загрузить настройки фильтра.";
@@ -736,6 +824,35 @@
                                 this.isLoggingIn = false; 
                             });
                     },
+                    getUserAgeLabel() {
+                        if (!this.userBirthday) return '';
+                        const parts = String(this.userBirthday).split('-');
+                        if (parts.length !== 3) return '';
+                        const year = Number(parts[0]);
+                        const month = Number(parts[1]) - 1;
+                        const day = Number(parts[2]);
+                        const birthDate = new Date(year, month, day);
+                        if (Number.isNaN(birthDate.getTime())) return '';
+
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const mDiff = today.getMonth() - birthDate.getMonth();
+                        if (mDiff < 0 || (mDiff === 0 && today.getDate() < birthDate.getDate())) {
+                            age--;
+                        }
+                        if (age < 0 || age > 120) return '';
+                        return `${age} лет`;
+                    },
+                    saveUserBirthday() {
+                        this.sendRequest('user/profile.php', {
+                            userId: this.userId,
+                            birthday: this.userBirthday || ''
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.userBirthday = res.birthday || '';
+                            }
+                        });
+                    },
                     async simpleCheckbox(type, isChecked) {
                         const data = {
                             userId: this.userId,
@@ -799,7 +916,7 @@
                         @click="loadSubSections(mainSection, index)"
                     >
                         <div 
-                            class="d-flex align-items-center justify-content-between h-100 my-1 py-1 px-1 rounded" 
+                            class="d-flex align-items-center justify-content-between h-100 py-1 rounded" 
                             :class="{ 'menu-color': mainSection.isSubSectionVisible }"
                             style="width:260px;min-width:260px;max-width:260px"
                         >
@@ -812,21 +929,32 @@
                                 class="cursor-pointer min-w-20px w-20px h-20px"
                             >
                             <!-- Название раздела -->
-                            <div class="d-flex w-200px">
-                                <span class="flex-nowrap text-nowrap" style="margin-left:8px;">
+                            <div class="d-flex align-items-center overflow-hidden flex-grow-1">
+                                <span class="text-truncate" style="margin-left:8px;">
                                     {{ mainSection.NAME }}
                                 </span>
                             </div>
-                            <img 
-                            class="filter-white ms-4 transition-easy-time-05 cursor-pointer pointer-events-none" 
-                            :class="{
-                                'rotate-180': mainSection.isSubSectionVisible,
-                                'opacity-0': mainSection.ID == 135
-                            }" 
-                            height="8" 
-                            width="8" 
-                            src="svg/check.svg"
-                            >
+                            <div class="d-flex align-items-center flex-shrink-0 ms-2">
+                                <span 
+                                    v-if="hasActiveMainFilter(mainSection)" 
+                                    class="position-relative d-inline-flex align-items-center justify-content-center rounded bg-primary text-white me-2"
+                                    style="width: 22px; height: 22px; font-size: 12px;"
+                                    title="В разделе есть активные фильтры подразделов"
+                                >
+                                    ⚙️
+                                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"></span>
+                                </span>
+                                <img 
+                                    class="filter-white transition-easy-time-05 cursor-pointer pointer-events-none" 
+                                    :class="{
+                                        'rotate-180': mainSection.isSubSectionVisible,
+                                        'opacity-0': mainSection.ID == 135
+                                    }" 
+                                    height="8" 
+                                    width="8" 
+                                    src="svg/check.svg"
+                                >
+                            </div>
                             <!-- Показываем подразделы -->
                         </div>
 
@@ -856,13 +984,13 @@
                                     <div class="d-flex align-items-center flex-shrink-0 ms-2">
                                         <span 
                                             class="position-relative d-inline-flex align-items-center justify-content-center rounded"
-                                            :class="(hasActiveSubFilter(subSection.ID) || activeSubFilterId === String(subSection.ID)) ? 'bg-primary text-white' : 'opacity-50'"
+                                            :class="!isPremiumActive ? 'opacity-25' : ((hasActiveSubFilter(subSection.ID) || activeSubFilterId === String(subSection.ID)) ? 'bg-primary text-white' : 'opacity-50')"
                                             style="width: 24px; height: 24px; font-size: 13px;"
-                                            :title="hasActiveSubFilter(subSection.ID) ? 'Фильтр активен' : 'Настроить фильтр'"
+                                            :title="!isPremiumActive ? 'Доступно с Премиум' : (hasActiveSubFilter(subSection.ID) ? 'Фильтр активен' : 'Настроить фильтр')"
                                         >
                                             <span class="gear-spin" :class="{ 'gear-spin-active': activeSubFilterId === String(subSection.ID) }">⚙️</span>
                                             <span 
-                                                v-if="hasActiveSubFilter(subSection.ID)" 
+                                                v-if="isPremiumActive && hasActiveSubFilter(subSection.ID)" 
                                                 class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-dark rounded-circle"
                                             ></span>
                                         </span>
@@ -991,20 +1119,35 @@
                                     </div>
 
                                     <div v-if="subFilterTab === 'extra'" class="d-flex flex-column gap-2">
-                                        <div>
-                                            <label class="form-label small mb-1 text-white-50">Рейтинг товара от (0–5):</label>
-                                            <input
-                                                type="number"
-                                                inputmode="decimal"
-                                                step="0.1"
-                                                min="0"
-                                                max="5"
-                                                v-model.number="sectionFilters[String(subSection.ID)].minRating"
-                                                @blur="saveSubSectionFilter(subSection.ID)"
-                                                @keydown.enter="saveSubSectionFilter(subSection.ID)"
-                                                placeholder="Например: 4.5"
-                                                class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
-                                            />
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1 text-white-50">Рейтинг от:</label>
+                                                <input
+                                                    type="number"
+                                                    inputmode="decimal"
+                                                    step="0.1"
+                                                    min="0"
+                                                    max="5"
+                                                    v-model.number="sectionFilters[String(subSection.ID)].minRating"
+                                                    @blur="saveSubSectionFilter(subSection.ID)"
+                                                    @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                    placeholder="4.5"
+                                                    class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                                />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1 text-white-50">Отзывов от:</label>
+                                                <input
+                                                    type="number"
+                                                    inputmode="numeric"
+                                                    min="0"
+                                                    v-model.number="sectionFilters[String(subSection.ID)].minReviews"
+                                                    @blur="saveSubSectionFilter(subSection.ID)"
+                                                    @keydown.enter="saveSubSectionFilter(subSection.ID)"
+                                                    placeholder="10"
+                                                    class="form-control form-control-sm bg-transparent text-white border-secondary text-center"
+                                                />
+                                            </div>
                                         </div>
                                         <div class="d-flex flex-column gap-1">
                                             <span class="small text-white-50">Маркетплейсы:</span>
@@ -1030,8 +1173,66 @@
         
         <div class="d-flex flex-column mb-3 align-items-center justify-content-center position-sticky bottom-0 z-9">
             <div class="d-flex flex-column position-relative">
-                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg" style="width:260px;min-width:260px;max-width:260px;max-height:75vh;overflow-y:auto;z-index:10;" ref="marketplaceFilterRef">
-                    <div class="d-flex flex-column">
+                <div v-if="isFilterActive" class="d-flex flex-column p-3 rounded-top menu-color position-absolute bottom-100 start-0 shadow-lg border-bottom border-secondary" style="width:260px;min-width:260px;max-width:260px;max-height:75vh;overflow-y:auto;z-index:10;" ref="marketplaceFilterRef">
+                    <div v-if="bottomMenuTab === 'premium'" class="d-flex flex-column gap-2 text-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="fs-6 fw-bold">⭐ Премиум-доступ</span>
+                            <span class="badge" :class="isPremiumActive ? 'bg-success' : 'bg-danger'">
+                                {{ isPremiumActive ? 'Активен' : 'Истёк' }}
+                            </span>
+                        </div>
+
+                        <div class="p-2 rounded bg-dark border border-secondary small">
+                            <div class="text-white-50">Срок действия:</div>
+                            <div class="fw-semibold mt-1" v-if="premIsLegacy">
+                                Бессрочный доступ
+                            </div>
+                            <div class="fw-semibold mt-1" v-else-if="premUntil">
+                                {{ isPremiumActive ? 'До ' + premUntil + ' (МСК)' : 'Завершён ' + premUntil + ' (МСК)' }}
+                            </div>
+                            <div class="fw-semibold mt-1" v-else>
+                                Не активен
+                            </div>
+                        </div>
+
+                        <div v-if="!isPremiumActive" class="small text-warning">
+                            Бесплатный 1-месячный период завершён. Фильтры временно отключены — товары приходят по выбранным разделам.
+                        </div>
+                        <div v-else class="small text-white-50">
+                            Доступны: маски и стоп-слова подразделов, фильтр по цене, рейтингу, маркетплейсам, расписанию и нейроозвучка.
+                        </div>
+                    </div>
+
+                    <div v-if="bottomMenuTab === 'profile'" class="d-flex flex-column gap-2 text-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="fs-6 fw-bold">👤 Профиль</span>
+                            <span v-if="userId" class="small text-white-50">ID {{ userId }}</span>
+                        </div>
+
+                        <div class="p-2 rounded bg-dark border border-secondary d-flex flex-column gap-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label small mb-0 text-white-50">Дата рождения:</label>
+                                <span v-if="getUserAgeLabel()" class="badge bg-secondary">{{ getUserAgeLabel() }}</span>
+                            </div>
+                            <input
+                                type="date"
+                                v-model="userBirthday"
+                                @change="saveUserBirthday()"
+                                :max="new Date().toISOString().split('T')[0]"
+                                min="1910-01-01"
+                                class="form-control form-control-sm bg-transparent text-white border-secondary"
+                                style="color-scheme: dark;"
+                            />
+                            <button
+                                v-if="userBirthday"
+                                type="button"
+                                @click="userBirthday = ''; saveUserBirthday();"
+                                class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none"
+                            >Очистить дату</button>
+                        </div>
+                    </div>
+
+                    <div v-if="bottomMenuTab === 'filter' && isPremiumActive" class="d-flex flex-column">
                         <div 
                             @click="$refs.topPostsCheckRef.click();" 
                             class="d-flex justify-content-between align-items-center flex-nowrap fs-6 fw-semibold cursor-pointer"
@@ -1199,10 +1400,28 @@
                         </div>
                     </div>
                 </div>
-                <div class="fs-6 fw-bolder cursor-pointer p-3 pt-2 menu-color" :class="{ 'rounded-top': !isFilterActive }" @click.stop="toggleFilter" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px;">
-                    <div class="d-flex flex-column justify-content-center align-items-center w-60px">
-                        <div class="w-20px h-20px">⚙️</div>
-                        <span :class="{ 'text-primary': isFilterActive }">Фильтр</span>
+                <div class="fs-6 fw-bolder p-3 pt-2 menu-color d-flex align-items-center justify-content-around" :class="{ 'rounded-top': !isFilterActive }" ref="filterBtnRef" style="width:260px;min-width:260px;max-width:260px;">
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        :class="{ 'opacity-50': !isPremiumActive }"
+                        @click.stop="toggleBottomMenu('filter')"
+                    >
+                        <div class="w-20px h-20px">{{ isPremiumActive ? '⚙️' : '🔒' }}</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'filter' }">Фильтр</span>
+                    </div>
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        @click.stop="toggleBottomMenu('premium')"
+                    >
+                        <div class="w-20px h-20px">⭐</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'premium' }">Премиум</span>
+                    </div>
+                    <div 
+                        class="d-flex flex-column justify-content-center align-items-center cursor-pointer px-2"
+                        @click.stop="toggleBottomMenu('profile')"
+                    >
+                        <div class="w-20px h-20px">👤</div>
+                        <span :class="{ 'text-primary': isFilterActive && bottomMenuTab === 'profile' }">Профиль</span>
                     </div>
                 </div>
             </div>
