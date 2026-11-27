@@ -78,6 +78,9 @@
                         premIsLegacy: false,
                         profileUserId: null,
                         userBirthday: '',
+                        birthDay: '',
+                        birthMonth: '',
+                        birthYear: '',
                         isFilterMarketplaceActive: false,
                         timeRangeFilterActive: false,
                         priceFilterActive: false,
@@ -601,6 +604,7 @@
 
                                     this.profileUserId = result.profileId || null;
                                     this.userBirthday = result.birthday || '';
+                                    this.syncBirthdayPartsFromIso(this.userBirthday);
                                     this.isPremiumActive = result.isPremiumActive !== false;
                                     this.premUntil = result.premUntil || '';
                                     this.premIsLegacy = Boolean(result.premIsLegacy);
@@ -845,6 +849,76 @@
                         if (age < 0 || age > 120) return '';
                         return `${age} лет`;
                     },
+                    syncBirthdayPartsFromIso(isoDate) {
+                        const parts = String(isoDate || '').split('-');
+                        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                            this.birthYear = String(Number(parts[0]));
+                            this.birthMonth = String(Number(parts[1]));
+                            this.birthDay = String(Number(parts[2]));
+                        } else {
+                            this.birthYear = '';
+                            this.birthMonth = '';
+                            this.birthDay = '';
+                        }
+                    },
+                    getBirthMonthsList() {
+                        return [
+                            { val: '1', label: 'Янв' },
+                            { val: '2', label: 'Фев' },
+                            { val: '3', label: 'Мар' },
+                            { val: '4', label: 'Апр' },
+                            { val: '5', label: 'Май' },
+                            { val: '6', label: 'Июн' },
+                            { val: '7', label: 'Июл' },
+                            { val: '8', label: 'Авг' },
+                            { val: '9', label: 'Сен' },
+                            { val: '10', label: 'Окт' },
+                            { val: '11', label: 'Ноя' },
+                            { val: '12', label: 'Дек' }
+                        ];
+                    },
+                    getBirthYearsList() {
+                        const currentYear = new Date().getFullYear();
+                        const years = [];
+                        for (let y = currentYear; y >= 1920; y--) {
+                            years.push(String(y));
+                        }
+                        return years;
+                    },
+                    getDaysInBirthMonth() {
+                        const yearNum = Number(this.birthYear) || 2000;
+                        const monthNum = Number(this.birthMonth) || 1;
+                        return new Date(yearNum, monthNum, 0).getDate();
+                    },
+                    onBirthdaySelectChange() {
+                        if (!this.birthDay && !this.birthMonth && !this.birthYear) {
+                            this.userBirthday = '';
+                            this.saveUserBirthday();
+                            return;
+                        }
+
+                        if (!this.birthDay || !this.birthMonth || !this.birthYear) {
+                            return;
+                        }
+
+                        const maxDays = this.getDaysInBirthMonth();
+                        if (Number(this.birthDay) > maxDays) {
+                            this.birthDay = String(maxDays);
+                        }
+
+                        const yyyy = String(this.birthYear).padStart(4, '0');
+                        const mm = String(this.birthMonth).padStart(2, '0');
+                        const dd = String(this.birthDay).padStart(2, '0');
+                        this.userBirthday = `${yyyy}-${mm}-${dd}`;
+                        this.saveUserBirthday();
+                    },
+                    clearUserBirthday() {
+                        this.birthDay = '';
+                        this.birthMonth = '';
+                        this.birthYear = '';
+                        this.userBirthday = '';
+                        this.saveUserBirthday();
+                    },
                     saveUserBirthday() {
                         this.sendRequest('user/profile.php', {
                             userId: this.userId,
@@ -852,6 +926,7 @@
                         }).then(res => {
                             if (res && res.success) {
                                 this.userBirthday = res.birthday || '';
+                                this.syncBirthdayPartsFromIso(this.userBirthday);
                             }
                         });
                     },
@@ -1216,19 +1291,42 @@
                                 <label class="form-label small mb-0 text-white-50">Дата рождения:</label>
                                 <span v-if="getUserAgeLabel()" class="badge bg-secondary">{{ getUserAgeLabel() }}</span>
                             </div>
-                            <input
-                                type="date"
-                                v-model="userBirthday"
-                                @change="saveUserBirthday()"
-                                :max="new Date().toISOString().split('T')[0]"
-                                min="1910-01-01"
-                                class="form-control form-control-sm bg-transparent text-white border-secondary"
-                                style="color-scheme: dark;"
-                            />
+                            <div class="row g-1">
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthDay"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                    >
+                                        <option value="">День</option>
+                                        <option v-for="d in getDaysInBirthMonth()" :key="d" :value="String(d)">{{ String(d).padStart(2, '0') }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthMonth"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                    >
+                                        <option value="">Мес.</option>
+                                        <option v-for="m in getBirthMonthsList()" :key="m.val" :value="m.val">{{ m.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <select
+                                        v-model="birthYear"
+                                        @change="onBirthdaySelectChange()"
+                                        class="form-select form-select-sm bg-dark text-white border-secondary px-1 text-center"
+                                    >
+                                        <option value="">Год</option>
+                                        <option v-for="y in getBirthYearsList()" :key="y" :value="y">{{ y }}</option>
+                                    </select>
+                                </div>
+                            </div>
                             <button
-                                v-if="userBirthday"
+                                v-if="userBirthday || birthDay || birthMonth || birthYear"
                                 type="button"
-                                @click="userBirthday = ''; saveUserBirthday();"
+                                @click="clearUserBirthday()"
                                 class="btn btn-link btn-sm text-danger p-0 text-start text-decoration-none"
                             >Очистить дату</button>
                         </div>
