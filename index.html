@@ -22,7 +22,7 @@
                         permanentAnswer: "Для входа отправьте /code боту и введите полученный код:",
                         ajaxAnswer: null,
                         isLoggingIn: false, // 1. Добавляем новый флаг состояния загрузки
-                        isGuideOpen: localStorage.getItem('miniapp_guide_closed') !== '1',
+                        isGuideOpen: false,
                         isFilterActive: false,
                         bottomMenuTab: 'filter',
                         isPremiumActive: true,
@@ -31,6 +31,7 @@
                         profileUserId: null,
                         userBirthday: '',
                         userProfession: '',
+                        pdAgreed: false,
                         birthDay: '',
                         birthMonth: '',
                         birthYear: '',
@@ -538,7 +539,19 @@
                     },
                     toggleGuide() {
                         this.isGuideOpen = !this.isGuideOpen;
-                        localStorage.setItem('miniapp_guide_closed', this.isGuideOpen ? '0' : '1');
+                        if (this.isGuideOpen && !this.filterLoaded) {
+                            this.loadAllFilterData();
+                        }
+                    },
+                    savePdAgreement() {
+                        this.sendRequest('user/profile.php', {
+                            userId: this.userId,
+                            pdAgreed: this.pdAgreed
+                        }).then(res => {
+                            if (res && res.success) {
+                                this.pdAgreed = Boolean(res.pdAgreed);
+                            }
+                        });
                     },
                     toggleBottomMenu(tabName) {
                         if (tabName === 'filter' && !this.isPremiumActive) {
@@ -574,6 +587,7 @@
                                     this.profileUserId = result.profileId || null;
                                     this.userBirthday = result.birthday || '';
                                     this.userProfession = result.profession || '';
+                                    this.pdAgreed = Boolean(result.pdAgreed);
                                     this.syncBirthdayPartsFromIso(this.userBirthday);
                                     this.isPremiumActive = result.isPremiumActive !== false;
                                     this.premUntil = result.premUntil || '';
@@ -998,38 +1012,54 @@
     <div id="pageContent" class="d-flex flex-column align-items-center" v-if="pageReady" v-cloak>
         <div class="d-flex w-100 h-100 align-items-start justify-content-center mb-3">
             <div class="d-flex flex-column">
-                <div class="menu-color rounded border border-secondary p-2 mb-3 w-260px">
-                    <div 
-                        class="d-flex align-items-center justify-content-between cursor-pointer"
+                <div class="d-flex align-items-center justify-content-between mb-2 w-260px">
+                    <button 
+                        type="button"
                         @click="toggleGuide()"
+                        class="btn btn-sm menu-color text-white border border-secondary d-inline-flex align-items-center gap-1 px-2 py-1 cursor-pointer"
                     >
-                        <div class="d-flex align-items-center gap-2">
-                            <span>📘</span>
-                            <span class="fw-semibold fs-13px">Как пользоваться</span>
-                        </div>
+                        <span>❓</span>
+                        <span class="fw-semibold fs-12px">Справка</span>
                         <img 
-                            class="filter-white transition-easy-time-05 pointer-events-none" 
+                            class="filter-white transition-easy-time-05 pointer-events-none ms-1" 
                             :class="{ 'rotate-180': isGuideOpen }" 
                             height="8" 
                             width="8" 
                             src="svg/check.svg"
                         >
+                    </button>
+                    <div class="fs-5 fw-semibold text-white">Категории</div>
+                </div>
+
+                <div v-if="isGuideOpen" class="menu-color rounded border border-secondary p-3 mb-3 w-260px d-flex flex-column gap-2 text-white fs-13px">
+                    <div>
+                        <strong>Справка</strong> — краткая инструкция, а справа от неё расположен список <strong>Категорий</strong> для подписки на скидки.
+                    </div>
+                    <div>
+                        <strong>1. Подписка:</strong> отметьте галочками нужные категории и подкатегории.
+                    </div>
+                    <div>
+                        <strong>2. Фильтры (только для Премиум):</strong> нажмите на название подкатегории (<span class="text-info">⚙️</span>), чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки. Общие настройки находятся внизу во вкладке «Фильтр».
+                    </div>
+                    <div>
+                        <strong>3. Поддержка:</strong> в случае ошибки напишите в Telegram <a :href="'https:/' + '/t.me/ya_yura1'" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none fw-semibold">@ya_yura1</a>.
                     </div>
 
-                    <div v-if="isGuideOpen" class="d-flex flex-column gap-2 mt-2 pt-2 border-top border-secondary fs-12px text-white-50">
-                        <div>
-                            <span class="text-white fw-semibold">1. Подписка:</span> отметьте нужные категории и подкатегории галочками.
-                        </div>
-                        <div>
-                            <span class="text-white fw-semibold">2. Точный фильтр (⚙️):</span> нажмите на название подкатегории, чтобы задать маски (<code class="text-info">%pro%</code>, <code class="text-info">slim%</code>), стоп-слова (<code class="text-info">%чехол%</code>), цену, рейтинг и площадки.
-                        </div>
-                        <div>
-                            <span class="text-white fw-semibold">3. Общие правила:</span> внизу в «Фильтр» настраиваются глобальная цена, рейтинг, время отправки и озвучка.
-                        </div>
+                    <div class="pt-2 border-top border-secondary">
+                        <label class="d-flex align-items-start gap-2 cursor-pointer mb-0">
+                            <input 
+                                type="checkbox" 
+                                v-model="pdAgreed" 
+                                @change="savePdAgreement()"
+                                class="cursor-pointer min-w-20px w-20px h-20px mt-1 flex-shrink-0"
+                            >
+                            <span class="fs-12px text-white">
+                                Я ознакомлен с условиями и даю согласие на обработку моих персональных данных (дата рождения, должность).
+                            </span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="fs-5 mb-2">Категории</div>
                 <div id="selection" class="d-flex flex-column">
                     <div 
                         v-for="(mainSection, index) in mainSections" 
